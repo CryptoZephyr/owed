@@ -14,5 +14,7 @@ jobs:
         with:
           node-version: 24
       - run: npm install --no-audit --no-fund
+      - name: APIMatic PayPal SDK is built and loads
+        run: node --input-type=module -e "const m = await import('paypal'); new m.PaypalClient({}); console.log('paypal SDK loaded from', import.meta.resolve('paypal'));"
       - run: npm run build
       - run: npm run typecheck
