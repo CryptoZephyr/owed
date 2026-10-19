@@ -46,7 +46,7 @@ export async function inviteAction(form: FormData): Promise<never> {
   const user = await requireActor();
   return action(async () => {
     const roleId = id(form);
-    const token = await inviteCandidate(user, roleId, field(form, "label"));
+    const token = await inviteCandidate(user, roleId, field(form, "label"), field(form, "paypalEmail"));
     return `/employer/roles/${roleId}?invitation=${token}`;
   });
 }

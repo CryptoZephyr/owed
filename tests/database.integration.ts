@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { database, query, transaction } from "../src/lib/owed/db";
 import type { Actor, Guarantee, Role } from "../src/lib/owed/domain";
-import { acceptInvite, approveRole, closeGuarantee, closeRole, createRole, enqueue, flagGuarantee, fundRole, inviteCandidate } from "../src/lib/owed/roles";
+import { acceptInvite, approveRole, closeGuarantee, closeRole, createRole, enqueue, flagGuarantee, fundRole, inviteCandidate, invitationDetails } from "../src/lib/owed/roles";
 import { claim, finish, preflight, runWorker, schedule } from "../src/lib/owed/worker";
 import type { Provider } from "../src/lib/owed/worker";
 import { newLoginState, consumeLoginState } from "../src/lib/owed/auth";
@@ -19,8 +19,8 @@ const deadline = () => new Date(Date.now() + 2 * 86400000).toISOString();
 
 async function person(): Promise<Actor> {
   const id = randomUUID();
-  return (await query<Actor>(`insert into owed.candidates (id,paypal_user_id,payer_id,name,verified)
-    values ($1::uuid,$1::text,$1::text,'Test member',true) returning *`, [id]))[0]!;
+  return (await query<Actor>(`insert into owed.candidates (id,paypal_user_id,payer_id,name,email,verified,email_verified)
+    values ($1::uuid,$1::text,$1::text,'Test member',$2,true,true) returning *`, [id, `${id}@example.test`]))[0]!;
 }
 
 async function role(capacity = 1): Promise<string> {
@@ -48,6 +48,7 @@ const provider: Provider = async (op) => {
 before(async () => {
   await query("drop schema if exists owed cascade");
   await query(await readFile(new URL("../supabase/migrations/202610190001_owed.sql", import.meta.url), "utf8"));
+  await query(await readFile(new URL("../supabase/migrations/202610190002_invitation_identity.sql", import.meta.url), "utf8"));
 });
 beforeEach(async () => {
   await query("truncate owed.candidates,owed.roles,owed.guarantees,owed.paypal_operations,owed.sessions,owed.login_states,owed.notifications cascade");
@@ -129,7 +130,7 @@ for (const reason of ["elapsed deadline", "insufficient authorization lifetime"]
 
 test("a saved payout keeps reconciling after verification is lost without submitting again", async () => {
   const id = await role();
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await acceptInvite(candidate, token);
   await due(id);
   await runWorker(1, provider);
@@ -160,7 +161,7 @@ test("a saved payout keeps reconciling after verification is lost without submit
 
 test("loss of verification still blocks the first payout submission", async () => {
   const id = await role();
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await acceptInvite(candidate, token);
   await due(id);
   await runWorker(1, provider);
@@ -169,6 +170,43 @@ test("loss of verification still blocks the first payout submission", async () =
   await runWorker(1, async (op) => { calls++; return provider(op); });
   assert.equal(calls, 0);
   assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.status, "needs_attention");
+});
+
+test("only the intended email-verified PayPal account can view or claim an invitation", async () => {
+  const id = await role();
+  const token = await inviteCandidate(employer, id, "Candidate", ` ${candidate.email!.toUpperCase()} `);
+  const stranger = await person();
+  assert.equal(await invitationDetails(null, token), null);
+  assert.equal(await invitationDetails(stranger, token), null);
+  assert.equal(await invitationDetails(employer, token), null);
+  await assert.rejects(acceptInvite(stranger, token), /intended/);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.candidate_id, null);
+  const detail = await invitationDetails(candidate, token);
+  assert.equal(detail?.employer_name, "Example");
+  assert.equal(detail?.amount_cents, 1000);
+  await query("update owed.candidates set email_verified=false where id=$1", [candidate.id]);
+  assert.equal(await invitationDetails(candidate, token), null);
+  await assert.rejects(acceptInvite(candidate, token), /email/);
+  await query("update owed.candidates set email_verified=true,verified=false where id=$1", [candidate.id]);
+  assert.equal(await invitationDetails(candidate, token), null);
+  await query("update owed.candidates set verified=true where id=$1", [candidate.id]);
+  await acceptInvite(candidate, token);
+  await query("update owed.candidates set email=$2,email_verified=false where id=$1", [candidate.id, "new@example.test"]);
+  assert.equal((await invitationDetails(candidate, token))?.employer_name, "Example");
+  assert.equal(await invitationDetails(stranger, token), null);
+  await assert.rejects(acceptInvite(stranger, token), /claimed/);
+});
+
+test("missing intended identity fails closed, and invalid or duplicate addresses cannot consume a place", async () => {
+  const id = await role(2);
+  await assert.rejects(inviteCandidate(employer, id, "Candidate", "bad address"), /email/);
+  assert.equal((await query("select * from owed.guarantees")).length, 0);
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
+  await assert.rejects(inviteCandidate(employer, id, "Another", candidate.email!.toUpperCase()), /already invited/);
+  const legacy = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
+  await query("update owed.guarantees set intended_email=null where id=$1", [legacy.id]);
+  assert.equal(await invitationDetails(candidate, token), null);
+  await assert.rejects(acceptInvite(candidate, token), /intended/);
 });
 
 test("simultaneous workers claim once, stale completion cannot overwrite a new lease", async () => {
@@ -188,9 +226,9 @@ test("simultaneous workers claim once, stale completion cannot overwrite a new l
 
 test("capacity is transactional and ownership checks protect all employer changes", async () => {
   const id = await role();
-  const attempts = await Promise.allSettled([inviteCandidate(employer, id, "One"), inviteCandidate(employer, id, "Two")]);
+  const attempts = await Promise.allSettled([inviteCandidate(employer, id, "One", candidate.email!), inviteCandidate(employer, id, "Two", `${candidate.email!.replace("@", "+other@")}`)]);
   assert.equal(attempts.filter((r) => r.status === "fulfilled").length, 1);
-  await assert.rejects(inviteCandidate(candidate, id, "Intruder"), /not found/);
+  await assert.rejects(inviteCandidate(candidate, id, "Intruder", candidate.email!), /not found/);
   const g = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
   await assert.rejects(closeGuarantee(candidate, g.id, { status: "not_moving_forward" }), /not found/);
   await assert.rejects(flagGuarantee(employer, g.id), /not found/);
@@ -198,7 +236,7 @@ test("capacity is transactional and ownership checks protect all employer change
 
 test("one verified account claims an invite, and another account cannot replace its payer", async () => {
   const id = await role();
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await assert.rejects(acceptInvite(employer, token), /own guarantee/);
   await assert.rejects(acceptInvite({ ...candidate, verified: false }, token), /verified/);
   await acceptInvite(candidate, token);
@@ -209,7 +247,7 @@ test("one verified account claims an invite, and another account cannot replace 
 
 test("deadline charges once, pays the connected candidate once, releases the remaining hold", async () => {
   const id = await role(2);
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await acceptInvite(candidate, token);
   await due(id);
   await runWorker(10, provider);
@@ -228,7 +266,7 @@ test("deadline charges once, pays the connected candidate once, releases the rem
 
 test("a disconnected candidate's deadline is funded, then paid when they connect", async () => {
   const id = await role();
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await due(id);
   await runWorker(10, provider);
   assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.status, "awaiting_account");
@@ -240,8 +278,8 @@ test("a disconnected candidate's deadline is funded, then paid when they connect
 
 test("closure before the deadline releases eligibility, late closure cannot erase a payment", async () => {
   const id = await role(2);
-  await inviteCandidate(employer, id, "Early");
-  await inviteCandidate(employer, id, "Late");
+  await inviteCandidate(employer, id, "Early", candidate.email!);
+  await inviteCandidate(employer, id, "Late", `${candidate.email!.replace("@", "+other@")}`);
   const guarantees = await query<Guarantee>("select * from owed.guarantees order by created_at,id");
   await closeGuarantee(employer, guarantees[0]!.id, { status: "not_moving_forward", message: "Ignored custom rejection reasons" });
   await due(id);
@@ -253,7 +291,7 @@ test("closure before the deadline releases eligibility, late closure cannot eras
 
 test("extensions are once-only, must move forward and must fit inside the PayPal authorization", async () => {
   const id = await role();
-  await inviteCandidate(employer, id, "Candidate");
+  await inviteCandidate(employer, id, "Candidate", candidate.email!);
   const g = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
   await assert.rejects(closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: new Date(Date.now() + 86400000).toISOString() }), /after the existing/);
   await closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: new Date(Date.now() + 3 * 86400000).toISOString() });
@@ -262,7 +300,7 @@ test("extensions are once-only, must move forward and must fit inside the PayPal
 
 test("nudge ticks deduplicate notifications and session state is consumed once", async () => {
   const id = await role();
-  await inviteCandidate(employer, id, "Candidate");
+  await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await query("update owed.guarantees set deadline=now()+interval '1 hour'");
   await query("select owed.tick()"); await query("select owed.tick()");
   assert.equal((await query("select id from owed.notifications where kind='deadline_nudge'")).length, 1);
@@ -273,7 +311,7 @@ test("nudge ticks deduplicate notifications and session state is consumed once",
 
 test("ambiguous writes stay unknown with the same immutable business input", async () => {
   const id = await role();
-  await inviteCandidate(employer, id, "Candidate");
+  await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await due(id);
   let sends = 0;
   await runWorker(1, async () => { sends++; throw new PayPalRestConnectionError(null); });
@@ -287,7 +325,7 @@ test("ambiguous writes stay unknown with the same immutable business input", asy
 
 test("mismatched authorization, budget and payout recipient are stopped before the provider", async () => {
   const id = await role();
-  const token = await inviteCandidate(employer, id, "Candidate");
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
   await acceptInvite(candidate, token);
   await due(id); await schedule();
   const op = (await claim())!;
@@ -319,7 +357,7 @@ for (const kind of ["create_hold", "authorize_hold", "charge_guarantee", "payout
       id = await role();
       if (kind === "release_hold") await closeRole(employer, id);
       else {
-        const token = await inviteCandidate(employer, id, "Candidate");
+        const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
         await acceptInvite(candidate, token);
         if (kind === "renew_hold") await query("update owed.roles set authorized_at=now()-interval '5 days' where id=$1", [id]);
         else { await due(id); if (kind === "payout") await runWorker(1, provider); }

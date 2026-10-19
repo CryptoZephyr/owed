@@ -26,7 +26,7 @@ export const cookieOptions = () => ({ httpOnly: true, secure: new URL(appOrigin(
 export async function actor(): Promise<Actor | null> {
   const token = (await cookies()).get("owed_session")?.value;
   if (!token) return null;
-  return (await query<Actor>(`select c.id,c.payer_id,c.name,c.verified from owed.sessions s join owed.candidates c on c.id=s.candidate_id
+  return (await query<Actor>(`select c.id,c.payer_id,c.name,c.email,c.email_verified,c.verified from owed.sessions s join owed.candidates c on c.id=s.candidate_id
     where s.token_hash=$1 and s.expires_at>now()`, [hashToken(token)]))[0] ?? null;
 }
 
@@ -52,10 +52,10 @@ export async function login(profile: PayPalProfile): Promise<void> {
   const oldToken = jar.get("owed_session")?.value;
   const token = randomBytes(32).toString("base64url");
   await transaction(async (db) => {
-    const user = (await db.query<{ id: string }>(`insert into owed.candidates (paypal_user_id,payer_id,name,email,verified)
-      values ($1,$2,$3,$4,$5) on conflict (paypal_user_id) do update set name=excluded.name,email=excluded.email,
-      verified=excluded.verified where owed.candidates.payer_id=excluded.payer_id returning id`,
-    [profile.userId, profile.payerId, profile.name ?? "PayPal member", profile.email, profile.verified])).rows[0];
+    const user = (await db.query<{ id: string }>(`insert into owed.candidates (paypal_user_id,payer_id,name,email,email_verified,verified)
+      values ($1,$2,$3,$4,$5,$6) on conflict (paypal_user_id) do update set name=excluded.name,email=excluded.email,
+      email_verified=excluded.email_verified,verified=excluded.verified where owed.candidates.payer_id=excluded.payer_id returning id`,
+    [profile.userId, profile.payerId, profile.name ?? "PayPal member", profile.email, profile.emailVerified, profile.verified])).rows[0];
     if (!user) throw new Error("PayPal account identity changed.");
     if (oldToken) await db.query("delete from owed.sessions where token_hash=$1", [hashToken(oldToken)]);
     await db.query("insert into owed.sessions (token_hash,candidate_id,expires_at) values ($1,$2,now()+interval '7 days')", [hashToken(token), user.id]);

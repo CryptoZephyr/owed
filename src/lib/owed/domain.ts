@@ -19,7 +19,9 @@ export const closureInput = z.object({
   newDeadline: z.iso.datetime({ offset: true }).optional(),
 });
 
-export type Actor = { id: string; payer_id: string; name: string; verified: boolean };
+export const intendedEmail = z.string().trim().toLowerCase().pipe(z.email().max(254));
+
+export type Actor = { id: string; payer_id: string; name: string; verified: boolean; email: string | null; email_verified: boolean };
 export type Role = {
   id: string; employer_id: string; title: string; employer_name: string;
   guarantee_cents: number; capacity: number; hold_cents: number; charged_cents: number;
@@ -27,7 +29,7 @@ export type Role = {
   authorization_id: string | null; authorized_at: Date | null; expires_at: Date | null; renewed: boolean;
 };
 export type Guarantee = {
-  id: string; role_id: string; candidate_id: string | null; candidate_label: string;
+  id: string; role_id: string; candidate_id: string | null; candidate_label: string; intended_email: string | null;
   deadline: Date; amount_cents: number; status: string; extended: boolean; closure_status: string | null;
   closure_message: string | null; flagged_at: Date | null; payout_status: string | null; capture_id: string | null;
 };

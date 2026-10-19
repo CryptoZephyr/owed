@@ -141,6 +141,8 @@ The pinned SDK covers Orders, Payments, Vault, Transaction Search and Subscripti
 
 Every REST response is parsed with a zod schema before use.
 
+Log in with PayPal [documents](https://developer.paypal.com/api/identity/v1/userinfo-get) `email_verified` on the `userinfo` profile independently of `verified_account`. Owed requires both to view or accept an unclaimed invitation, and trusts `email_verified` only for the profile's `email` field, never a fallback address from `emails[]`. Employer-entered candidate PayPal emails are normalized and bound to the private invitation. A claimed guarantee remains bound to the original candidate's payer ID if their email changes. Missing verification fails closed, and a legacy unclaimed invitation with no intended email must be reissued by an operator. The email is never a Payouts destination.
+
 ## 1b.1 Durable writes
 
 ### DUPLICATE CLAIMS

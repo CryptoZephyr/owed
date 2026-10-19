@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { query, transaction } from "./db";
-import { assertDeadline, closureInput, DomainError, roleInput } from "./domain";
+import { assertDeadline, closureInput, DomainError, intendedEmail, roleInput } from "./domain";
 import type { Actor, Guarantee, Role } from "./domain";
 
 export const hashToken = (value: string): string => createHash("sha256").update(value).digest("hex");
@@ -55,9 +55,10 @@ export async function approveRole(actor: Actor, id: string, orderId: string): Pr
   });
 }
 
-export async function inviteCandidate(actor: Actor, id: string, label: string): Promise<string> {
+export async function inviteCandidate(actor: Actor, id: string, label: string, paypalEmail: string): Promise<string> {
   const name = label.trim();
   if (!name || name.length > 120) throw new DomainError("Enter a candidate label of up to 120 characters.", 400);
+  const email = intendedEmail.parse(paypalEmail);
   const token = randomBytes(32).toString("base64url");
   await transaction(async (db) => {
     const role = await lockedRole(db, id, actor);
@@ -65,10 +66,26 @@ export async function inviteCandidate(actor: Actor, id: string, label: string): 
     assertDeadline(role.deadline, new Date(), role.expires_at);
     const count = (await db.query<{ count: string }>("select count(*) from owed.guarantees where role_id=$1", [id])).rows[0]!;
     if (Number(count.count) >= role.capacity) throw new DomainError("Every funded place is already allocated.");
-    await db.query(`insert into owed.guarantees (role_id, invite_hash, candidate_label, deadline, amount_cents)
-      values ($1,$2,$3,$4,$5)`, [id, hashToken(token), name, role.deadline, role.guarantee_cents]);
+    const duplicate = await db.query("select id from owed.guarantees where role_id=$1 and intended_email=$2", [id, email]);
+    if (duplicate.rowCount) throw new DomainError("This PayPal email is already invited for this role.");
+    await db.query(`insert into owed.guarantees (role_id, invite_hash, candidate_label, intended_email, deadline, amount_cents)
+      values ($1,$2,$3,$4,$5,$6)`, [id, hashToken(token), name, email, role.deadline, role.guarantee_cents]);
   });
   return token;
+}
+
+export async function invitationDetails(actor: Actor | null, token: string): Promise<{
+  title: string; employer_name: string; amount_cents: number; deadline: Date; candidate_id: string | null;
+} | null> {
+  if (!actor) return null;
+  return (await query<{ title: string; employer_name: string; amount_cents: number; deadline: Date; candidate_id: string | null }>(
+    `select r.title,r.employer_name,g.amount_cents,g.deadline,g.candidate_id
+    from owed.guarantees g join owed.roles r on r.id=g.role_id
+    join owed.candidates c on c.id=$2
+    where g.invite_hash=$1 and c.verified and r.employer_id<>c.id
+      and (g.candidate_id=c.id or (g.candidate_id is null and c.email_verified and c.email=g.intended_email))`,
+    [hashToken(token), actor.id],
+  ))[0] ?? null;
 }
 
 export async function acceptInvite(actor: Actor, token: string): Promise<void> {
@@ -81,6 +98,10 @@ export async function acceptInvite(actor: Actor, token: string): Promise<void> {
     if (g.candidate_id === actor.id) return;
     if (g.candidate_id) throw new DomainError("This invitation has already been claimed.", 403);
     if (role.employer_id === actor.id) throw new DomainError("An employer cannot claim their own guarantee.", 403);
+    const identity = (await db.query<Actor>("select email,email_verified from owed.candidates where id=$1", [actor.id])).rows[0];
+    if (!g.intended_email || !identity?.email_verified || identity.email !== g.intended_email) {
+      throw new DomainError("This invitation requires the intended candidate's verified PayPal email.", 403);
+    }
     const captured = g.status === "awaiting_account" && !!g.capture_id;
     const closed = g.status === "closed";
     if ((!captured && !closed && role.status !== "active") || !["invited", "overdue", "charging", "awaiting_account", "closed"].includes(g.status)) throw new DomainError("This invitation is no longer available.");

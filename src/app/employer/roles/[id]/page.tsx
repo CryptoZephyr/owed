@@ -27,13 +27,13 @@ export default async function RolePage({ params, searchParams }: {
     {role.status === "approval_pending" && role.approve_url && <p><a href={role.approve_url} rel="noreferrer">Approve this hold in PayPal sandbox</a></p>}
     {role.status === "needs_attention" && <p role="alert">A PayPal outcome needs operator review. No new hold or payment will be created to replace an unknown one.</p>}
     {role.status === "active" && <section><h2>Invite an interviewed candidate</h2>
-      <p>{guarantees.length} of {role.capacity} funded places allocated. A private link can be claimed by one verified PayPal account. Share it only with the intended candidate.</p>
-      <form action={inviteAction}><input type="hidden" name="id" value={id} /><label>Candidate label <input name="label" required maxLength={120} /></label> <button type="submit">Create private invitation</button></form>
+      <p>{guarantees.length} of {role.capacity} funded places allocated. Enter the candidate&apos;s PayPal email to restrict who can view and claim this invitation. Share the private link only with them.</p>
+      <form action={inviteAction}><input type="hidden" name="id" value={id} /><label>Candidate label <input name="label" required maxLength={120} /></label> <label>Candidate&apos;s PayPal email <input name="paypalEmail" type="email" required maxLength={254} /></label> <button type="submit">Create private invitation</button></form>
     </section>}
     {invite && <section><h2>Private invitation</h2><p>Copy this link now. Owed stores only its hash, so it cannot show it again.</p><p><a href={invite}>{invite}</a></p></section>}
     <h2>Candidates</h2>
     <ul>{guarantees.map((g) => <li key={g.id}><article><h3>{g.candidate_label}</h3>
-      <p>{g.candidate_id ? "PayPal connected" : "Awaiting candidate connection"}. {g.status}. USD {(g.amount_cents / 100).toFixed(2)}. Due {g.deadline.toISOString()}.</p>
+      <p>{g.candidate_id ? "PayPal connected" : "Awaiting candidate connection"}. {g.status}. Intended PayPal email: {g.intended_email ?? "Not set for legacy invitation"}. USD {(g.amount_cents / 100).toFixed(2)}. Due {g.deadline.toISOString()}.</p>
       {g.closure_message && <p>{g.closure_message}</p>}{g.flagged_at && <p>Candidate requested a review. A flag does not change payment rules.</p>}
       {["invited", "pending"].includes(g.status) && <form action={closeGuaranteeAction}>
         <input type="hidden" name="id" value={g.id} />
