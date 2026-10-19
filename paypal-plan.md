@@ -145,7 +145,7 @@ Every REST response is parsed with a zod schema before use.
 
 ### DUPLICATE CLAIMS
 
-The claim store is `owed.paypal_operations` in the dedicated Supabase PostgreSQL database, with a unique constraint on `(kind, business_key)`. The schema and service run against local PostgreSQL 17 in tests. Hosted provisioning is blocked by the account's two-active-free-project limit. No other application's database is used.
+The claim store is `owed.paypal_operations` in the dedicated Owed Supabase project `kjpbyrvnygiptznftyuk` (`eu-west-1`), with a unique constraint on `(kind, business_key)`. The migration is applied and the hosted constraint/RLS were verified. The schema and service also run against isolated local PostgreSQL 17 in tests. Setlo was paused with the owner's explicit approval to free the slot. No other application's database is used or repurposed.
 
 | Write | Where the claim is stored | What rejects the second one | Where that rejection is caught | Where in the code |
 | --- | --- | --- | --- | --- |
@@ -236,7 +236,7 @@ One mapping, applied by `translatePayPalFailure` in `src/lib/paypal/errors.ts` t
 
 - B1 resolved in sandbox on 2026-10-19: identical USD 1.00 Payouts requests with `sender_batch_id=owed-b1-20261019-v1`. First: HTTP 201, batch `2T9UZG3X22C74`, `PENDING`. Second: HTTP 400, `name=USER_BUSINESS_ERROR`, `message=User business error.`, `details[0].field=SENDER_BATCH_ID`, `issue=Batch with given sender_batch_id already exists`, debug ID `f669009a12868`. `details[0].link[0]` is a GET self link to the original batch. Reconcile duplicates by extracting only that batch ID from an allowlisted sandbox path, then GET it using Owed's configured host. Never follow arbitrary returned URLs or mint a new batch ID. PayPal documents deduplication for 30 days, so unknown outcomes older than that require manual reconciliation.
 - A1 (minor): PayPal returns the original response for a repeated `PayPal-Request-Id`. The retention window is undocumented here. Test in sandbox.
-- A2 resolved in code: private schema, claim store, service, minute scheduler scripts and plain employer/candidate pages exist. Local PostgreSQL tests verify the migration and financial invariants. Hosted application and pg_cron/pg_net activation still require a dedicated Owed project and deployment URL. The free-project limit blocked provisioning on 2026-10-19. Setlo and TasteCase were not changed.
+- A2: schema, claim store, service, scheduler scripts and plain employer/candidate pages exist. On 2026-10-19 the owner approved pausing Setlo, after which Owed project `kjpbyrvnygiptznftyuk` was created and became `ACTIVE_HEALTHY`. The schema and `supabase/deadlines.sql` are applied, the unique constraint/RLS/private-schema permissions were verified, and the database-only deadline job is active every minute. Connection to the session pooler uses verified TLS with the public Supabase CA. Local PostgreSQL tests verify financial invariants with fake money, not the hosted database. The HTTP money worker is deliberately not scheduled until an app is deployed and both Vault values are configured. TasteCase remains unchanged.
 - A3 (minor): `env()` is parsed on first use. Add a startup check so a missing credential fails at boot.
 
 ## REQUIRED READING
