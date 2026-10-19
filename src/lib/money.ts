@@ -13,5 +13,7 @@ export function toCents(value: string): number {
     throw new RangeError(`Not a valid money value: ${value}`);
   }
   const [, whole = "0", fraction = ""] = match;
-  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  if (!Number.isSafeInteger(cents)) throw new RangeError("Money value exceeds safe integer cents");
+  return cents;
 }

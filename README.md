@@ -20,6 +20,10 @@ What exists today:
 - The PayPal layer in `src/lib/paypal/`: role holds, partial charges, releases and renewals through APIMatic's generated PayPal SDK, plus Payouts, Log in with PayPal and webhook verification over PayPal REST
 - One error-translation boundary for every PayPal failure
 - The contract sheet for every PayPal call in `paypal-plan.md`
+- A private PostgreSQL schema for Supabase, including roles, PayPal identities, guarantees, operation claims, hashed sessions and an in-app notification inbox
+- A recoverable worker with per-role sequencing, leased claims, fencing tokens and fixed deadline rules
+- Plain employer screens for funding roles, sharing invitations, sending status-only closure, and releasing unused holds
+- Plain candidate screens for PayPal connection, guarantee/payout status and review flags
 
 What was verified by hand in the PayPal sandbox on 2026-10-17, using the same credentials and endpoints:
 
@@ -29,7 +33,11 @@ What was verified by hand in the PayPal sandbox on 2026-10-17, using the same cr
 - An unclaimed payout to an address with no PayPal account
 - Log in with PayPal returning the candidate's name, email, PayPal account ID and verified status
 
-Not built yet: the database, the deadline scheduler, the AI closure drafting, and the employer and candidate screens.
+On 2026-10-19, repeating the same sandbox Payouts request returned HTTP 400 `USER_BUSINESS_ERROR`, with `SENDER_BATCH_ID`, `Batch with given sender_batch_id already exists`, and a link to the original batch. `paypal-plan.md` records the exact result and safe recovery policy.
+
+The schema and worker are tested against local PostgreSQL 17. A dedicated hosted Owed project could not be provisioned because the Supabase account has reached its two-active-free-project limit. No TasteCase or Setlo project was modified. Hosted scheduler activation and browser-based PayPal login/approval remain unverified.
+
+Not built yet: AI drafting/risk review, employer fee recovery, outbound email notifications, charity fallback for returned payouts, and webhook ingestion. The existing webhook signature-verification helper is not a registered webhook endpoint. Current recovery polls PayPal instead. Status messages are deterministic, not AI-generated. This sandbox charges the guarantee principal and funds PayPal fees from the merchant balance, so candidates receive the full promised amount.
 
 ## PayPal integration
 
@@ -50,16 +58,45 @@ Not built yet: the database, the deadline scheduler, the AI closure drafting, an
 - The SDK map showed that the SDK has one environment and no environment selector, so Owed sets the host explicitly with `serverOptions.baseUrl` and refuses live PayPal unless it is switched on deliberately.
 - The map also showed what the SDK does not cover (Payouts, identity, webhooks), which is why those calls use PayPal REST directly.
 - The error-handling skill shaped `src/lib/paypal/errors.ts`, which treats a dropped connection on a write as an unknown outcome rather than a failure.
+- Re-reading the requested SDK commit exposed `ClientOptions.logging`, which Owed explicitly disables even if `PAYPAL_CLIENT_LOG=debug` is set. The testing skill's `ClientOptions.fetch` seam exercises real wire encoding and caught the generated void decoder rejecting PayPal's empty HTTP 204, now handled by a verified readback.
 
 ## Running it
 
-Requires Node.js 20.9 or newer.
+Requires Node.js 24. Tests use Node's module hooks and a dedicated PostgreSQL 17 test database.
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill in your PayPal sandbox app credentials
+cp .env.example .env.local
 npm run dev
 ```
+
+Fill in `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from the sandbox app. Enable Log in with PayPal, including the PayPal account ID and verified account attributes. Register `${APP_URL}/auth/paypal/callback` as its return URL. Both employers and candidates use PayPal login, with opaque HttpOnly SameSite sessions. No OAuth access or refresh tokens are stored.
+
+### Database and scheduler
+
+1. Create a dedicated Supabase project named Owed after freeing a project slot or upgrading the plan. Do not point Owed at another application's database.
+2. Set the server-only `DATABASE_URL` to that project's Supavisor session-mode or direct connection string, with `sslmode=verify-full`. Install the project's official CA using `NODE_EXTRA_CA_CERTS` if required. TLS verification is never disabled for hosted connections. The `owed` schema is private, is not exposed through PostgREST, and has RLS enabled with no public policies. Backend connections must use the schema owner or an explicitly provisioned privileged database role.
+3. Apply `supabase/migrations/202610190001_owed.sql` with the Supabase SQL editor or PostgreSQL migration tooling. Do not reapply this initial migration to an existing schema.
+4. Deploy the app with `APP_URL` set to its HTTPS origin. Set a random `CRON_SECRET` of at least 32 characters. Keep database and PayPal credentials server-only.
+5. In Supabase Vault, add `owed_app_url` with that origin and `owed_cron_secret` with the same worker secret. Apply `supabase/schedule.sql`. This enables `pg_cron` and `pg_net`, then schedules `owed.tick()` and a protected worker request every minute. The script deliberately fails if the Vault values are missing. Neither secret is placed in cron SQL.
+6. Check `cron.job_run_details`, `net._http_response`, and `owed.paypal_operations` after deployment. A successful cron SQL job alone does not prove the HTTP worker succeeded. Unclaimed payouts stay unclaimed and continue polling, never appearing paid. Rejected/manual-review operations need operator investigation of the original PayPal reference, not a replacement business key.
+
+The HTTP worker processes one operation per invocation to fit a 60-second request budget. Overlapping invocations are safe. Larger workloads need more frequent worker dispatch or a longer-lived worker, not a larger unbounded batch inside a request. Nudge notifications appear in the employer dashboard 24 hours before the deadline. The deadline update itself runs in PostgreSQL even if HTTP dispatch fails, then durable operations catch up when the worker returns. An invited candidate's overdue guarantee is captured even before they connect; payout waits for their verified account.
+
+Deadlines are UTC, within 21 days, and at least a day before the authorization expires. One extension is allowed. Renewal is queued after four days if candidates are still pending, and never repeated after a successful renewal. A late closure cannot cancel an owed guarantee. Each invitation consumes one funded place, even after closure. There is no reuse of a closed slot for an extra interview.
+
+### Checks
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+createdb owed_test
+DATABASE_URL=postgresql://localhost/owed_test npm run test:db
+npm run build
+```
+
+Database tests rebuild only the `owed` schema in a localhost database named exactly `owed_test` and refuse other targets. They use a fake money provider, not PayPal credentials. SDK tests stub only `fetch`, keep retries off and use wire-shaped responses. CI runs the same checks with a disposable PostgreSQL 17 service. The Supabase-specific cron extension script still needs verification on the hosted project.
 
 ## License
 

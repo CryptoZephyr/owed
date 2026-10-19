@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20.9"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "node --import ./tests/server-runtime.mjs --import tsx --test tests/*.test.ts",
+    "test:db": "node --import ./tests/server-runtime.mjs --import tsx --test tests/database.integration.ts"
   },
   "dependencies": {
     "next": "16.4.0",
-    "paypal": "git+https://github.com/context-plugins/paypal-typescript-sdk.git#3a32a7f1556df08a83858734d9bf1cbfab724184",
+    "paypal": "git+https://github.com/context-plugins/paypal-typescript-sdk.git#5d0df8a8817e5fdf2e2cd48e68f790ea4730aab2",
+    "pg": "8.16.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
@@ -21,8 +25,12 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/pg": "8.15.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "typescript": "6.0.3"
+    "eslint": "10.12.0",
+    "tsx": "4.20.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
   }
 }

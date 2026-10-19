@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { env } from "@/lib/env";
 import { paypalApiBase } from "./sdk";
 
@@ -18,6 +19,16 @@ export class PayPalRestConnectionError extends Error {
     super("PayPal could not be reached", { cause });
     this.name = "PayPalRestConnectionError";
   }
+}
+
+async function readResponse(response: Response): Promise<string> {
+  try { return await response.text(); }
+  catch (cause) { throw new PayPalRestConnectionError(cause); }
+}
+
+function parseResponse(text: string): unknown {
+  try { return JSON.parse(text) as unknown; }
+  catch { throw new z.ZodError([{ code: "custom", path: [], message: "PayPal returned invalid JSON" }]); }
 }
 
 async function send(url: string, init: RequestInit): Promise<Response> {
@@ -40,20 +51,20 @@ export async function postForm<T>(path: string, form: Record<string, string>): P
     headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
     body: new URLSearchParams(form).toString(),
   });
-  const text = await response.text();
+  const text = await readResponse(response);
   if (!response.ok) {
     throw new PayPalRestError(response.status, text, response.headers.get("paypal-debug-id") ?? undefined);
   }
-  return JSON.parse(text) as T;
+  return parseResponse(text) as T;
 }
 
 async function appAccessToken(): Promise<string> {
   if (appToken && appToken.expiresAt > Date.now() + 60_000) {
     return appToken.value;
   }
-  const token = await postForm<{ access_token: string; expires_in: number }>("/v1/oauth2/token", {
+  const token = z.object({ access_token: z.string().min(1), expires_in: z.number().positive() }).parse(await postForm("/v1/oauth2/token", {
     grant_type: "client_credentials",
-  });
+  }));
   appToken = { value: token.access_token, expiresAt: Date.now() + token.expires_in * 1000 };
   return appToken.value;
 }
@@ -81,9 +92,9 @@ export async function paypalRest<T>(path: string, options: RestOptions = {}): Pr
     headers,
     body: options.body === undefined ? null : JSON.stringify(options.body),
   });
-  const text = await response.text();
+  const text = await readResponse(response);
   if (!response.ok) {
     throw new PayPalRestError(response.status, text, response.headers.get("paypal-debug-id") ?? undefined);
   }
-  return (text ? JSON.parse(text) : undefined) as T;
+  return (text ? parseResponse(text) : undefined) as T;
 }

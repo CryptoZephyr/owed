@@ -9,11 +9,11 @@ const loginScopes = ["openid", "profile", "email", "https://uri.paypal.com/servi
 const userTokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
 
 const profileSchema = z.object({
-  user_id: z.string(),
+  user_id: z.string().min(1),
   name: z.string().optional(),
   email: z.string().optional(),
   emails: z.array(z.object({ value: z.string(), primary: z.boolean().optional() })).optional(),
-  payer_id: z.string().optional(),
+  payer_id: z.string().min(1),
   verified_account: z.union([z.boolean(), z.string()]).optional(),
 });
 
@@ -42,9 +42,6 @@ export async function payPalProfileFromCode(code: string): Promise<PayPalProfile
   const profile = profileSchema.parse(
     await paypalRest("/v1/identity/openidconnect/userinfo?schema=openid", { accessToken: token.access_token }),
   );
-  if (!profile.payer_id) {
-    throw new Error("PayPal did not share the account ID. Check that Log in with PayPal requests the PayPal account ID attribute.");
-  }
   const primaryEmail = profile.emails?.find((entry) => entry.primary)?.value ?? profile.emails?.[0]?.value ?? profile.email;
   return {
     userId: profile.user_id,
