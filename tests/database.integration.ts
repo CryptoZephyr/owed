@@ -1,10 +1,10 @@
 import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { database, query, transaction } from "../src/lib/owed/db";
 import type { Actor, Guarantee, Role } from "../src/lib/owed/domain";
-import { acceptInvite, approveRole, closeGuarantee, closeRole, createRole, enqueue, flagGuarantee, fundRole, inviteCandidate, invitationDetails } from "../src/lib/owed/roles";
+import { acceptInvite, approveRole, closeGuarantee, closeRole, correctInvitationEmail, createRole, enqueue, flagGuarantee, fundRole, hashToken, inviteCandidate, invitationDetails } from "../src/lib/owed/roles";
 import { claim, finish, preflight, runWorker, schedule } from "../src/lib/owed/worker";
 import type { Provider } from "../src/lib/owed/worker";
 import { newLoginState, consumeLoginState } from "../src/lib/owed/auth";
@@ -21,6 +21,12 @@ async function person(): Promise<Actor> {
   const id = randomUUID();
   return (await query<Actor>(`insert into owed.candidates (id,paypal_user_id,payer_id,name,email,verified,email_verified)
     values ($1::uuid,$1::text,$1::text,'Test member',$2,true,true) returning *`, [id, `${id}@example.test`]))[0]!;
+}
+
+async function personWithEmail(email: string): Promise<Actor> {
+  const member = await person();
+  await query("update owed.candidates set email=$2 where id=$1", [member.id, email]);
+  return { ...member, email };
 }
 
 async function role(capacity = 1): Promise<string> {
@@ -207,6 +213,106 @@ test("missing intended identity fails closed, and invalid or duplicate addresses
   await query("update owed.guarantees set intended_email=null where id=$1", [legacy.id]);
   assert.equal(await invitationDetails(candidate, token), null);
   await assert.rejects(acceptInvite(candidate, token), /intended/);
+});
+
+test("correcting an unclaimed address rotates its link without reallocating or charging the guarantee", async () => {
+  const id = await role();
+  const wrong = await person();
+  const oldToken = await inviteCandidate(employer, id, "Candidate", wrong.email!);
+  const original = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
+  assert.equal((await invitationDetails(wrong, oldToken))?.amount_cents, 1000);
+  const replacement = await correctInvitationEmail(employer, original.id, wrong.email!, ` ${candidate.email!.toUpperCase()} `);
+  assert.equal(replacement.roleId, id);
+  assert.notEqual(replacement.token, oldToken);
+  assert.equal(await invitationDetails(wrong, oldToken), null);
+  await assert.rejects(acceptInvite(wrong, oldToken), /not found/);
+  assert.equal(await invitationDetails(wrong, replacement.token), null);
+  assert.equal((await invitationDetails(candidate, replacement.token))?.amount_cents, 1000);
+  const [updated] = await query<Guarantee>("select * from owed.guarantees");
+  assert.equal(updated?.id, original.id);
+  assert.equal(updated?.role_id, id);
+  assert.equal(updated?.amount_cents, original.amount_cents);
+  assert.equal(updated?.deadline.toISOString(), original.deadline.toISOString());
+  assert.equal(updated?.candidate_label, original.candidate_label);
+  assert.equal((await query("select * from owed.guarantees")).length, 1);
+  assert.equal((await query("select * from owed.paypal_operations")).length, 0);
+  await acceptInvite(candidate, replacement.token);
+  await due(id);
+  await runWorker(10, provider);
+  const payout = (await query<{ input: { payerId: string } }>("select input from owed.paypal_operations where kind='payout'"))[0]!;
+  assert.equal(payout.input.payerId, candidate.payer_id);
+});
+
+test("email correction refuses strangers, stale forms, duplicate addresses, claims and expired guarantees", async () => {
+  const id = await role(2);
+  const other = await person();
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
+  await inviteCandidate(employer, id, "Other", other.email!);
+  const original = (await query<Guarantee>("select * from owed.guarantees where intended_email=$1", [candidate.email]))[0]!;
+  await assert.rejects(correctInvitationEmail(other, original.id, candidate.email!, "changed@example.test"), /not found/);
+  await assert.rejects(correctInvitationEmail(employer, original.id, candidate.email!, "invalid email"), /email/);
+  await assert.rejects(correctInvitationEmail(employer, original.id, candidate.email!, other.email!.toUpperCase()), /already invited/);
+  await assert.rejects(correctInvitationEmail(employer, original.id, candidate.email!, candidate.email!), /different/);
+  const replacement = await correctInvitationEmail(employer, original.id, candidate.email!, "changed@example.test");
+  await assert.rejects(correctInvitationEmail(employer, original.id, candidate.email!, other.email!), /changed/);
+  const newCandidate = await personWithEmail("changed@example.test");
+  assert.ok(await invitationDetails(newCandidate, replacement.token));
+  assert.equal(await invitationDetails(candidate, token), null);
+  await acceptInvite(newCandidate, replacement.token);
+  await assert.rejects(correctInvitationEmail(employer, original.id, "changed@example.test", "another@example.test"), /unclaimed/);
+  const unclaimed = (await query<Guarantee>("select * from owed.guarantees where intended_email=$1", [other.email]))[0]!;
+  await due(id);
+  await assert.rejects(correctInvitationEmail(employer, unclaimed.id, other.email!, "later@example.test"), /deadline/);
+  await query("update owed.guarantees set status='charging' where id=$1", [unclaimed.id]);
+  await assert.rejects(correctInvitationEmail(employer, unclaimed.id, other.email!, "later@example.test"), /unclaimed/);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees where id=$1", [unclaimed.id]))[0]?.intended_email, other.email);
+});
+
+test("an in-flight claim cannot use the old link after its hash is replaced", async () => {
+  const id = await role();
+  const wrong = await person();
+  const oldToken = await inviteCandidate(employer, id, "Candidate", wrong.email!);
+  const original = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
+  let claimAttempt!: Promise<void>;
+  await transaction(async (db) => {
+    await db.query("select id from owed.roles where id=$1 for update", [id]);
+    claimAttempt = acceptInvite(wrong, oldToken);
+    let blocked = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const [state] = await query<{ waiting: boolean }>(`select exists(select 1 from pg_stat_activity
+        where datname=current_database() and wait_event_type='Lock'
+          and query like 'select * from owed.roles where id = $1 for update%') as waiting`);
+      if (state?.waiting) { blocked = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(blocked, true, "The claim must have read the old hash before the invitation changes.");
+    await db.query("update owed.guarantees set invite_hash=$2,intended_email=$3 where id=$1",
+      [original.id, hashToken(randomBytes(32).toString("base64url")), candidate.email]);
+  });
+  await assert.rejects(claimAttempt, /Invitation not found/);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees where id=$1", [original.id]))[0]?.candidate_id, null);
+});
+
+test("a legacy unclaimed invitation without an intended email can be reissued before its deadline", async () => {
+  const id = await role();
+  const oldToken = await inviteCandidate(employer, id, "Candidate", candidate.email!);
+  const original = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
+  await query("update owed.guarantees set intended_email=null where id=$1", [original.id]);
+  assert.equal(await invitationDetails(candidate, oldToken), null);
+  const replacement = await correctInvitationEmail(employer, original.id, "", candidate.email!);
+  assert.equal(await invitationDetails(candidate, oldToken), null);
+  assert.ok(await invitationDetails(candidate, replacement.token));
+  await acceptInvite(candidate, replacement.token);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.candidate_id, candidate.id);
+});
+
+test("correction cannot issue a new link against an expired hold", async () => {
+  const id = await role();
+  const token = await inviteCandidate(employer, id, "Candidate", candidate.email!);
+  const original = (await query<Guarantee>("select * from owed.guarantees"))[0]!;
+  await query("update owed.roles set expires_at=now()-interval '1 second' where id=$1", [id]);
+  await assert.rejects(correctInvitationEmail(employer, original.id, candidate.email!, "changed@example.test"), /hold has expired/);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.invite_hash, hashToken(token));
 });
 
 test("simultaneous workers claim once, stale completion cannot overwrite a new lease", async () => {

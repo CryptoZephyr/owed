@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { appOrigin, logout, requireActor } from "@/lib/owed/auth";
 import { DomainError } from "@/lib/owed/domain";
-import { acceptInvite, approveRole, closeGuarantee, closeRole, createRole, flagGuarantee, fundRole, inviteCandidate } from "@/lib/owed/roles";
+import { acceptInvite, approveRole, closeGuarantee, closeRole, correctInvitationEmail, createRole, flagGuarantee, fundRole, inviteCandidate } from "@/lib/owed/roles";
 
 const field = (form: FormData, key: string): string => String(form.get(key) ?? "");
 const id = (form: FormData, key = "id"): string => z.uuid().parse(field(form, key));
@@ -48,6 +48,14 @@ export async function inviteAction(form: FormData): Promise<never> {
     const roleId = id(form);
     const token = await inviteCandidate(user, roleId, field(form, "label"), field(form, "paypalEmail"));
     return `/employer/roles/${roleId}?invitation=${token}`;
+  });
+}
+
+export async function correctInvitationAction(form: FormData): Promise<never> {
+  const user = await requireActor();
+  return action(async () => {
+    const replacement = await correctInvitationEmail(user, id(form), field(form, "previousEmail"), field(form, "paypalEmail"));
+    return `/employer/roles/${replacement.roleId}?invitation=${replacement.token}`;
   });
 }
 

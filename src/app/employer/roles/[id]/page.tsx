@@ -3,7 +3,8 @@ import { z } from "zod";
 import { appOrigin, requireActor } from "@/lib/owed/auth";
 import { query } from "@/lib/owed/db";
 import type { Guarantee, Role } from "@/lib/owed/domain";
-import { closeGuaranteeAction, closeRoleAction, fundRoleAction, inviteAction } from "../../../actions";
+import { closeGuaranteeAction, closeRoleAction, correctInvitationAction, fundRoleAction, inviteAction } from "../../../actions";
+import { hashToken } from "@/lib/owed/roles";
 
 export default async function RolePage({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ invitation?: string }>;
@@ -16,7 +17,8 @@ export default async function RolePage({ params, searchParams }: {
   const guarantees = await query<Guarantee>("select * from owed.guarantees where role_id=$1 order by created_at", [id]);
   const operations = await query<{ id: string; kind: string; state: string }>("select id,kind,state from owed.paypal_operations where role_id=$1 order by created_at", [id]);
   const { invitation } = await searchParams;
-  const invite = invitation && /^[\w-]{43}$/.test(invitation) ? `${appOrigin()}/invite/${invitation}` : null;
+  const invite = invitation && /^[\w-]{43}$/.test(invitation) && guarantees.some((g) => g.invite_hash === hashToken(invitation))
+    ? `${appOrigin()}/invite/${invitation}` : null;
   return <main>
     <h1>{role.title}</h1><p>{role.employer_name}</p>
     <dl><dt>Status</dt><dd>{role.status}</dd><dt>Hold</dt><dd>USD {(role.hold_cents / 100).toFixed(2)}</dd>
@@ -34,6 +36,12 @@ export default async function RolePage({ params, searchParams }: {
     <h2>Candidates</h2>
     <ul>{guarantees.map((g) => <li key={g.id}><article><h3>{g.candidate_label}</h3>
       <p>{g.candidate_id ? "PayPal connected" : "Awaiting candidate connection"}. {g.status}. Intended PayPal email: {g.intended_email ?? "Not set for legacy invitation"}. USD {(g.amount_cents / 100).toFixed(2)}. Due {g.deadline.toISOString()}.</p>
+      {role.status === "active" && g.status === "invited" && !g.candidate_id && g.deadline > new Date() && <form action={correctInvitationAction}>
+        <input type="hidden" name="id" value={g.id} /><input type="hidden" name="previousEmail" value={g.intended_email ?? ""} />
+        <label>Correct PayPal email <input name="paypalEmail" type="email" required maxLength={254} /></label>
+        <p>Only before acceptance and the deadline. Correcting the email invalidates the old private link. Send the new link to the candidate.</p>
+        <button type="submit">Correct email and replace invitation link</button>
+      </form>}
       {g.closure_message && <p>{g.closure_message}</p>}{g.flagged_at && <p>Candidate requested a review. A flag does not change payment rules.</p>}
       {["invited", "pending"].includes(g.status) && <form action={closeGuaranteeAction}>
         <input type="hidden" name="id" value={g.id} />

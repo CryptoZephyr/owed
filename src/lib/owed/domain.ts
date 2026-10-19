@@ -29,7 +29,7 @@ export type Role = {
   authorization_id: string | null; authorized_at: Date | null; expires_at: Date | null; renewed: boolean;
 };
 export type Guarantee = {
-  id: string; role_id: string; candidate_id: string | null; candidate_label: string; intended_email: string | null;
+  id: string; role_id: string; candidate_id: string | null; candidate_label: string; intended_email: string | null; invite_hash: string;
   deadline: Date; amount_cents: number; status: string; extended: boolean; closure_status: string | null;
   closure_message: string | null; flagged_at: Date | null; payout_status: string | null; capture_id: string | null;
 };

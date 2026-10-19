@@ -74,6 +74,30 @@ export async function inviteCandidate(actor: Actor, id: string, label: string, p
   return token;
 }
 
+export async function correctInvitationEmail(actor: Actor, id: string, previousEmail: string, paypalEmail: string): Promise<{ roleId: string; token: string }> {
+  const email = intendedEmail.parse(paypalEmail);
+  const token = randomBytes(32).toString("base64url");
+  return transaction(async (db) => {
+    const initial = (await db.query<{ role_id: string }>("select role_id from owed.guarantees where id=$1", [id])).rows[0];
+    if (!initial) throw new DomainError("Guarantee not found.", 404);
+    const role = await lockedRole(db, initial.role_id, actor);
+    const g = (await db.query<Guarantee>("select * from owed.guarantees where id=$1 for update", [id])).rows[0];
+    if (!g || g.role_id !== role.id) throw new DomainError("Guarantee not found.", 404);
+    if (role.status !== "active" || !role.expires_at || g.status !== "invited" || g.candidate_id || g.capture_id) {
+      throw new DomainError("Only an unclaimed invitation on an active role can be corrected.");
+    }
+    const now = (await db.query<{ now: Date }>("select clock_timestamp() as now")).rows[0]!.now;
+    if (g.deadline <= now) throw new DomainError("The guarantee deadline has passed. Contact the operator.");
+    if (role.expires_at <= now) throw new DomainError("The role hold has expired. Contact the operator.");
+    if (g.intended_email !== (previousEmail || null)) throw new DomainError("The invitation has changed. Refresh the role page before correcting it.");
+    if (email === g.intended_email) throw new DomainError("Enter a different PayPal email.", 400);
+    const duplicate = await db.query("select id from owed.guarantees where role_id=$1 and intended_email=$2 and id<>$3", [role.id, email, id]);
+    if (duplicate.rowCount) throw new DomainError("This PayPal email is already invited for this role.");
+    await db.query("update owed.guarantees set intended_email=$2,invite_hash=$3 where id=$1", [id, email, hashToken(token)]);
+    return { roleId: role.id, token };
+  });
+}
+
 export async function invitationDetails(actor: Actor | null, token: string): Promise<{
   title: string; employer_name: string; amount_cents: number; deadline: Date; candidate_id: string | null;
 } | null> {
@@ -95,6 +119,7 @@ export async function acceptInvite(actor: Actor, token: string): Promise<void> {
     if (!existing) throw new DomainError("Invitation not found.", 404);
     const role = await lockedRole(db, existing.role_id);
     const g = (await db.query<Guarantee>("select * from owed.guarantees where id=$1 for update", [existing.id])).rows[0]!;
+    if (g.invite_hash !== hashToken(token)) throw new DomainError("Invitation not found.", 404);
     if (g.candidate_id === actor.id) return;
     if (g.candidate_id) throw new DomainError("This invitation has already been claimed.", 403);
     if (role.employer_id === actor.id) throw new DomainError("An employer cannot claim their own guarantee.", 403);
