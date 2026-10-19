@@ -87,6 +87,7 @@ export function createProvider(client?: PaypalClient): Provider { return async (
       const orderId = requiredString(input, "orderId");
       const existing = replay ? await getOrderHold(orderId, client) : null;
       if (!existing && replay && age > 5 * 60000) return manual();
+      if (!existing && Date.parse(z.iso.datetime({ offset: true }).parse(input.deadline)) <= Date.now()) return manual();
       const result = existing ?? await authorizeRoleHold(orderId, client);
       if (result.payerId !== input.payerId || result.hold.amountCents !== input.amountCents || result.hold.status !== "CREATED" || !result.hold.expiresAt) return manual(result);
       return succeeded(result);
@@ -166,8 +167,11 @@ export async function finish(op: Operation, outcome: Outcome): Promise<void> {
         await db.query("update owed.roles set order_id=$2,approve_url=$3,status='approval_pending' where id=$1", [role.id, result.orderId, result.approveUrl]);
         break;
       case "authorize_hold": {
-        const hold = z.object({ authorizationId: z.string(), expiresAt: z.string(), amountCents: z.number() }).parse(result.hold);
-        await db.query(`update owed.roles set authorization_id=$2,expires_at=$3,authorized_at=now(),status='active' where id=$1`, [role.id, hold.authorizationId, hold.expiresAt]);
+        const hold = z.object({ authorizationId: z.string(), expiresAt: z.iso.datetime({ offset: true }), amountCents: z.number() }).parse(result.hold);
+        const now = (await db.query<{ now: Date }>("select clock_timestamp() as now")).rows[0]!.now;
+        const usable = role.deadline > now && role.deadline.getTime() <= Date.parse(hold.expiresAt) - 86400000;
+        await db.query(`update owed.roles set authorization_id=$2,expires_at=$3,authorized_at=now(),status=$4 where id=$1`, [role.id, hold.authorizationId, hold.expiresAt, usable ? "active" : "closing"]);
+        if (!usable) await enqueue(db, role.id, "release_hold", hold.authorizationId, { roleId: role.id, authorizationId: hold.authorizationId });
         break;
       }
       case "charge_guarantee": {
@@ -198,7 +202,9 @@ export async function preflight(op: Operation): Promise<boolean> {
       case "create_hold": return role.status === "draft" && input.roleId === role.id && input.amountCents === role.hold_cents;
       case "authorize_hold": {
         const owner = (await db.query<{ payer_id: string }>("select payer_id from owed.candidates where id=$1", [role.employer_id])).rows[0];
-        return role.status === "approval_pending" && input.orderId === role.order_id && input.payerId === owner?.payer_id && input.amountCents === role.hold_cents;
+        const now = (await db.query<{ now: Date }>("select clock_timestamp() as now")).rows[0]!.now;
+        return role.status === "approval_pending" && input.orderId === role.order_id && input.payerId === owner?.payer_id && input.amountCents === role.hold_cents
+          && input.deadline === role.deadline.toISOString() && (role.deadline > now || op.attempts > 1);
       }
       case "renew_hold": return role.status === "active" && !role.renewed && input.authorizationId === role.authorization_id;
       case "release_hold": return role.status === "closing" && input.authorizationId === role.authorization_id;
@@ -209,9 +215,10 @@ export async function preflight(op: Operation): Promise<boolean> {
           && role.charged_cents + g.amount_cents <= role.hold_cents;
       }
       case "payout": {
-        const g = (await db.query<Guarantee & { payer_id: string }>(`select g.*,c.payer_id from owed.guarantees g
-          join owed.candidates c on c.id=g.candidate_id and c.verified where g.id=$1 and g.role_id=$2`, [op.business_key, role.id])).rows[0];
+        const g = (await db.query<Guarantee & { payer_id: string; verified: boolean; payout_batch_id: string | null }>(`select g.*,c.payer_id,c.verified from owed.guarantees g
+          join owed.candidates c on c.id=g.candidate_id where g.id=$1 and g.role_id=$2`, [op.business_key, role.id])).rows[0];
         return !!g && !!g.capture_id && ["paying", "unclaimed"].includes(g.status)
+          && (op.result?.batchId === undefined ? g.verified : typeof op.result.batchId === "string" && op.result.batchId === g.payout_batch_id)
           && input.guaranteeId === g.id && input.payerId === g.payer_id && input.amountCents === g.amount_cents;
       }
       default: return false;

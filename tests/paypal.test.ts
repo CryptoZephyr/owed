@@ -147,6 +147,29 @@ test("unknown renewal reuses its original key, old ambiguous writes stop for man
   assert.equal((await createProvider(stub().client)(expired)).state, "manual_review");
 });
 
+test("expired authorization replays only read the order and never create a new hold", async () => {
+  const input = { orderId: "ORDER", payerId: "PAYER", amountCents: 1000, deadline: new Date(Date.now() - 1000).toISOString() };
+  const missing = stub(json({ id: "ORDER", status: "APPROVED", purchase_units: [{ amount: { currency_code: "USD", value: "10.00" } }] }));
+  assert.equal((await createProvider(missing.client)(operation("authorize_hold", input))).state, "manual_review");
+  assert.deepEqual(missing.requests.map((r) => r.method), ["GET"]);
+  const known = stub(json({ id: "ORDER", payer: { payer_id: "PAYER" }, purchase_units: [{ payments: { authorizations: [authorization] } }] }));
+  assert.equal((await createProvider(known.client)(operation("authorize_hold", input))).state, "succeeded");
+  assert.deepEqual(known.requests.map((r) => r.method), ["GET"]);
+  const first = operation("authorize_hold", input);
+  first.attempts = 1;
+  const unsent = stub();
+  assert.equal((await createProvider(unsent.client)(first)).state, "manual_review");
+  assert.equal(unsent.requests.length, 0);
+});
+
+test("an unexpired authorization replay retains its stable key after an empty order read", async () => {
+  const input = { orderId: "ORDER", payerId: "PAYER", amountCents: 1000, deadline: new Date(Date.now() + 86400000).toISOString() };
+  const fake = stub(json({ id: "ORDER", status: "APPROVED", purchase_units: [] }), json({ payer: { payer_id: "PAYER" }, purchase_units: [{ payments: { authorizations: [authorization] } }] }));
+  assert.equal((await createProvider(fake.client)(operation("authorize_hold", input))).state, "succeeded");
+  assert.deepEqual(fake.requests.map((r) => r.method), ["GET", "POST"]);
+  assert.equal(fake.requests[1]?.requestId, "owed-authorize-ORDER");
+});
+
 test("pending capture is read by its saved capture id and cannot trigger a second charge", async () => {
   const fake = stub(json({ id: "CAPTURE", status: "COMPLETED", amount: { currency_code: "USD", value: "10.00" } }));
   const op = operation("charge_guarantee", { amountCents: 1000 }, { captureId: "CAPTURE" });

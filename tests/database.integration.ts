@@ -72,6 +72,105 @@ test("unique kind/business_key rejects direct duplicates with PostgreSQL 23505",
   await assert.rejects(query("insert into owed.paypal_operations (role_id,kind,business_key,input) values ($1,'payout','key','{}')", [id]), (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === "23505");
 });
 
+test("expired PayPal approvals cannot enqueue a new authorization", async () => {
+  const id = await createRole(employer, { title: "Engineer", employerName: "Example", guaranteeCents: 1000, capacity: 1, deadline: deadline() });
+  await fundRole(employer, id, "https://owed.example");
+  await runWorker(1, provider);
+  await query("update owed.roles set deadline=now()-interval '1 second' where id=$1", [id]);
+  await assert.rejects(approveRole(employer, id, `order-${id}`), /future deadline/);
+  assert.equal((await query("select id from owed.paypal_operations where kind='authorize_hold'")).length, 0);
+});
+
+test("an authorization queued before a deadline cannot be sent after it expires", async () => {
+  const id = await role();
+  await query("update owed.roles set status='approval_pending',authorization_id=null,deadline=now()-interval '1 second' where id=$1", [id]);
+  const r = (await query<Role>("select * from owed.roles where id=$1", [id]))[0]!;
+  await transaction((db) => enqueue(db, id, "authorize_hold", r.order_id!, { orderId: r.order_id, payerId: employer.payer_id, amountCents: r.hold_cents, deadline: r.deadline.toISOString() }));
+  let calls = 0;
+  await runWorker(1, async (op) => { calls++; return provider(op); });
+  assert.equal(calls, 0);
+  assert.equal((await query<Role>("select * from owed.roles where id=$1", [id]))[0]?.status, "needs_attention");
+});
+
+test("an unknown authorization can still reconcile after the deadline and queues release", async () => {
+  const id = await role();
+  await query("update owed.roles set status='approval_pending',authorization_id=null,deadline=now()-interval '1 second' where id=$1", [id]);
+  const r = (await query<Role>("select * from owed.roles where id=$1", [id]))[0]!;
+  await transaction((db) => enqueue(db, id, "authorize_hold", r.order_id!, { orderId: r.order_id, payerId: employer.payer_id, amountCents: r.hold_cents, deadline: r.deadline.toISOString() }));
+  await query("update owed.paypal_operations set state='unknown',attempts=1 where kind='authorize_hold'");
+  const op = (await claim())!;
+  assert.equal(await preflight(op), true);
+  await finish(op, await provider(op));
+  assert.equal((await query<Role>("select * from owed.roles where id=$1", [id]))[0]?.status, "closing");
+  assert.equal((await query("select id from owed.paypal_operations where kind='release_hold'")).length, 1);
+});
+
+for (const reason of ["elapsed deadline", "insufficient authorization lifetime"]) {
+  test(`authorization finishing with ${reason} releases the original hold without activating the role`, async () => {
+    const id = await createRole(employer, { title: "Engineer", employerName: "Example", guaranteeCents: 1000, capacity: 1, deadline: deadline() });
+    await fundRole(employer, id, "https://owed.example");
+    await runWorker(1, provider);
+    await approveRole(employer, id, `order-${id}`);
+    const op = (await claim())!;
+    assert.equal(await preflight(op), true);
+    const outcome = await provider(op);
+    if (reason === "elapsed deadline") await query("update owed.roles set deadline=now()-interval '1 second' where id=$1", [id]);
+    else outcome.result.hold = { authorizationId: `auth-${id}`, amountCents: 1000, expiresAt: new Date(Date.now() + 86400000).toISOString() };
+    await finish(op, outcome);
+    const r = (await query<Role>("select * from owed.roles where id=$1", [id]))[0]!;
+    assert.equal(r.status, "closing");
+    assert.equal(r.authorization_id, `auth-${id}`);
+    const release = (await query<{ business_key: string }>("select business_key from owed.paypal_operations where kind='release_hold'"))[0]!;
+    assert.equal(release.business_key, r.authorization_id);
+    await runWorker(1, provider);
+    assert.equal((await query<Role>("select * from owed.roles where id=$1", [id]))[0]?.status, "closed");
+  });
+}
+
+test("a saved payout keeps reconciling after verification is lost without submitting again", async () => {
+  const id = await role();
+  const token = await inviteCandidate(employer, id, "Candidate");
+  await acceptInvite(candidate, token);
+  await due(id);
+  await runWorker(1, provider);
+  let submissions = 0;
+  let reads = 0;
+  const pendingProvider: Provider = async (op) => {
+    if (!op.result?.batchId) {
+      submissions++;
+      return { state: "pending", result: { batchId: "saved-batch", status: "PENDING" } };
+    }
+    reads++;
+    assert.equal(op.result.batchId, "saved-batch");
+    assert.equal(op.input.payerId, candidate.payer_id);
+    return { state: "succeeded", result: { batchId: "saved-batch", status: "SUCCESS" } };
+  };
+  await runWorker(1, pendingProvider);
+  await query("update owed.candidates set verified=false where id=$1", [candidate.id]);
+  await query("update owed.paypal_operations set next_attempt_at=now() where kind='payout'");
+  const op = (await claim())!;
+  assert.equal(await preflight({ ...op, result: { batchId: "other-batch" } }), false);
+  assert.equal(await preflight({ ...op, input: { ...op.input, payerId: employer.payer_id } }), false);
+  assert.equal(await preflight(op), true);
+  await finish(op, await pendingProvider(op));
+  assert.equal(submissions, 1);
+  assert.equal(reads, 1);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.status, "paid");
+});
+
+test("loss of verification still blocks the first payout submission", async () => {
+  const id = await role();
+  const token = await inviteCandidate(employer, id, "Candidate");
+  await acceptInvite(candidate, token);
+  await due(id);
+  await runWorker(1, provider);
+  await query("update owed.candidates set verified=false where id=$1", [candidate.id]);
+  let calls = 0;
+  await runWorker(1, async (op) => { calls++; return provider(op); });
+  assert.equal(calls, 0);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees"))[0]?.status, "needs_attention");
+});
+
 test("simultaneous workers claim once, stale completion cannot overwrite a new lease", async () => {
   const id = await role();
   await transaction((db) => enqueue(db, id, "renew_hold", id, { authorizationId: `auth-${id}` }));

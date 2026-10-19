@@ -50,7 +50,8 @@ export async function approveRole(actor: Actor, id: string, orderId: string): Pr
     if (!role.order_id || role.order_id !== orderId) throw new DomainError("PayPal order does not match this role.", 400);
     if (role.status === "active") return;
     if (role.status !== "approval_pending") throw new DomainError("This role cannot be authorized.");
-    await enqueue(db, id, "authorize_hold", orderId, { orderId, payerId: actor.payer_id, amountCents: role.hold_cents });
+    assertDeadline(role.deadline);
+    await enqueue(db, id, "authorize_hold", orderId, { orderId, payerId: actor.payer_id, amountCents: role.hold_cents, deadline: role.deadline.toISOString() });
   });
 }
 

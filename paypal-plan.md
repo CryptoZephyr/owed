@@ -181,6 +181,10 @@ An SDK `AuthError` records `credentials/sent=false`, leaves the claim queued and
 | The sum of charges on a hold never exceeds the hold amount | hold amount, funded capacity and immutable guarantee amounts | `inviteCandidate` serializes capacity allocation; `preflight` checks available budget; `finish` atomically records charge and queues payout; SQL CHECK protects total | `tests/database.integration.ts` capacity race, deadline pays once/releases remainder, mismatched budget |
 | A payout goes to the payer ID the candidate logged in with for that guarantee | immutable candidate identity from Log in with PayPal | `finish/acceptInvite` enqueue only the bound verified payer; `preflight` rechecks payer and captured guarantee amount | `tests/database.integration.ts` one verified account claims invite, mismatched payout recipient |
 
+### Authorization freshness and payout reconciliation
+
+Review hardening keeps the SDK request shapes, sandbox host and stable keys unchanged. Authorization claims snapshot the role deadline in immutable input. New authorization writes require an unexpired deadline, including bounded replays. Expired unknown authorizations can still be read by order ID. If a recovered or in-flight authorization no longer leaves a usable role deadline, persist the original authorization and queue its stable release instead of activating the role. Saved payout batches are reconciled read-only even if the candidate later loses verification, while first submissions still require a verified candidate and the original recipient/amount. A saved batch must match the guarantee's recorded batch.
+
 ## 1b.3 OPTIONAL FIELDS
 
 ### createOrder
