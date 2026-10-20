@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { fixedClosureMessage } from "./domain";
+import { deadlineText, fixedClosureMessage, mentionsDeadline } from "./domain";
 import type { ClosureStatus } from "./domain";
 
 export type ClosureContext = { status: ClosureStatus; title: string; employerName: string; newDeadline?: Date };
@@ -20,12 +20,10 @@ const labels: Record<ClosureStatus, string> = {
   still_deciding: "still deciding",
 };
 
-const day = (date?: Date): string | undefined => date?.toISOString().slice(0, 10);
-
 function describe(ctx: ClosureContext): string {
-  const date = day(ctx.newDeadline);
+  const cutoff = ctx.newDeadline && deadlineText(ctx.newDeadline);
   return [`Status: ${labels[ctx.status]}.`, `Role: ${ctx.title} at ${ctx.employerName}.`,
-    ctx.status === "still_deciding" && date ? `The team will send a final status by ${date} (UTC). The message must include the date ${date}.` : undefined,
+    ctx.status === "still_deciding" && cutoff ? `The team will send a final status by ${cutoff}. The message must state this exact cutoff, written as ${cutoff}.` : undefined,
   ].filter(Boolean).join("\n");
 }
 
@@ -53,8 +51,9 @@ function parse<T>(text: string, schema: z.ZodType<T>): T {
 
 export function blockingFlags(ctx: ClosureContext, message: string): string[] {
   const flags: string[] = [];
-  const date = day(ctx.newDeadline);
-  if (ctx.status === "still_deciding" && date && !message.includes(date)) flags.push(`State the new date ${date} in the message.`);
+  if (ctx.status === "still_deciding" && ctx.newDeadline && !mentionsDeadline(message, ctx.newDeadline)) {
+    flags.push(`State the new deadline ${deadlineText(ctx.newDeadline)} in the message.`);
+  }
   if (/https?:\/\/|www\.|@/i.test(message)) flags.push("Remove links and email addresses.");
   return flags;
 }

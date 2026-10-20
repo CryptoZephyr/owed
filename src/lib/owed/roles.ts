@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { query, transaction } from "./db";
-import { assertDeadline, closureInput, DomainError, fixedClosureMessage, intendedEmail, roleInput } from "./domain";
+import { assertDeadline, closureInput, DomainError, fixedClosureMessage, intendedEmail, mentionsDeadline, roleInput } from "./domain";
 import type { Actor, ClosureStatus, Guarantee, Role } from "./domain";
 import type { ClosureContext, Review } from "./closure-ai";
 
@@ -160,8 +160,8 @@ export async function closeGuarantee(actor: Actor, id: string, raw: unknown, rev
       if (deadline <= g.deadline) throw new DomainError("The new deadline must be after the existing one.", 400);
     }
     const message = input.message ?? fixedClosureMessage(input.status, deadline);
-    if (input.status === "still_deciding" && !message.includes(deadline.toISOString().slice(0, 10))) {
-      throw new DomainError("A still deciding message must state the new date.", 400);
+    if (input.status === "still_deciding" && !mentionsDeadline(message, deadline)) {
+      throw new DomainError("A still deciding message must state the new deadline date and time.", 400);
     }
     await db.query(`update owed.guarantees set closure_status=$2, closure_message=$3, deadline=$4,
       extended=extended or $5, status=case when $5 then status else 'closed' end,

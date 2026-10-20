@@ -590,7 +590,7 @@ test("a custom still deciding message must state the new date", async () => {
   const g = (await query<Guarantee>("select * from owed.guarantees where role_id=$1", [id]))[0]!;
   const later = new Date(g.deadline.getTime() + 86400000).toISOString();
   const review = { source: "ai" as const, model: "test-model", flags: [], blocking: [] };
-  await assert.rejects(closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: "We are still deciding." }, review), /new date/);
-  await closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: `We are still deciding and will reply by ${later.slice(0, 10)}.` }, review);
+  await assert.rejects(closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: `We are still deciding and will reply on ${later.slice(0, 10)}.` }, review), /new deadline/);
+  await closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: `We are still deciding and will reply by ${later.slice(0, 10)} ${later.slice(11, 16)} UTC.` }, review);
   assert.equal((await query<Guarantee>("select * from owed.guarantees where id=$1", [g.id]))[0]?.extended, true);
 });

@@ -22,6 +22,16 @@ export const closureInput = z.object({
 
 export type ClosureStatus = z.infer<typeof closureInput>["status"];
 
+export function deadlineText(date: Date): string {
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
+export function mentionsDeadline(message: string, date: Date): boolean {
+  const iso = date.toISOString();
+  return message.includes(iso.slice(0, 10)) && message.includes(iso.slice(11, 16));
+}
+
 export function fixedClosureMessage(status: ClosureStatus, deadline?: Date): string {
   if (status === "moving_forward") return "Thank you for your time. We are moving forward with your application.";
   if (status === "not_moving_forward") return "Thank you for your time. We are not moving forward with your application.";

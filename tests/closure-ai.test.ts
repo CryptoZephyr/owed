@@ -37,7 +37,8 @@ test("an unavailable model falls back to the standard message and blocks custom 
 test("hard rules block a missing new date and links whatever the model says", async () => {
   const clean: Chat = async () => "{\"flags\":[]}";
   assert.equal((await reviewClosure(deciding, "We are still deciding.", clean)).blocking.length, 1);
-  assert.deepEqual(await reviewClosure(deciding, "We are still deciding and will reply by 2026-10-30.", clean),
+  assert.equal((await reviewClosure(deciding, "We are still deciding and will reply by 2026-10-30.", clean)).blocking.length, 1);
+  assert.deepEqual(await reviewClosure(deciding, "We are still deciding and will reply by 2026-10-30 12:00 UTC.", clean),
     { source: "ai", model: "minimax/minimax-m3.1-flash:free", flags: [], blocking: [] });
   assert.equal(blockingFlags(ctx, "See https://example.com").length, 1);
   assert.equal(blockingFlags(ctx, "Write to hr@example.com").length, 1);

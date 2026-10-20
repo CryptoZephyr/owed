@@ -96,8 +96,10 @@ export async function sendClosureDraftAction(form: FormData): Promise<never> {
     if (!draft) throw new DomainError("Draft not found. Draft the message again.", 404);
     const message = z.string().trim().min(1).max(1200).parse(field(form, "message"));
     const ctx = await closureContext(user, guaranteeId, { status: draft.status, newDeadline: draft.new_deadline?.toISOString() });
-    const review = await reviewClosure(ctx, message);
-    const acknowledged = field(form, "acknowledged") === "yes" && message === draft.message;
+    const checked = await reviewClosure(ctx, message);
+    const unchanged = message === draft.message;
+    const review = unchanged && draft.review.flags.length ? { ...checked, flags: [...new Set([...draft.review.flags, ...checked.flags])] } : checked;
+    const acknowledged = field(form, "acknowledged") === "yes" && unchanged;
     if (review.blocking.length || (review.flags.length && !acknowledged)) {
       await storeClosureDraft(user, guaranteeId, ctx, message, review);
       return `/employer/roles/${ctx.roleId}#closure-${guaranteeId}`;
