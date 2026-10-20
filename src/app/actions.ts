@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { appOrigin, logout, requireActor } from "@/lib/owed/auth";
 import { DomainError } from "@/lib/owed/domain";
-import { acceptInvite, approveRole, closeGuarantee, closeRole, correctInvitationEmail, createRole, flagGuarantee, fundRole, inviteCandidate } from "@/lib/owed/roles";
+import { draftClosure, reviewClosure } from "@/lib/owed/closure-ai";
+import { acceptInvite, approveRole, closeGuarantee, closeRole, closureContext, closureDraft, correctInvitationEmail, createRole, discardClosureDraft, flagGuarantee, fundRole, inviteCandidate, storeClosureDraft } from "@/lib/owed/roles";
 
 const field = (form: FormData, key: string): string => String(form.get(key) ?? "");
 const id = (form: FormData, key = "id"): string => z.uuid().parse(field(form, key));
@@ -71,6 +72,44 @@ export async function closeGuaranteeAction(form: FormData): Promise<never> {
       newDeadline: field(form, "newDeadline") ? `${field(form, "newDeadline")}:00.000Z` : undefined });
     return "/employer";
   });
+}
+
+const closureFields = (form: FormData) => ({ status: field(form, "status"),
+  newDeadline: field(form, "newDeadline") ? `${field(form, "newDeadline")}:00.000Z` : undefined });
+
+export async function draftClosureAction(form: FormData): Promise<never> {
+  const user = await requireActor();
+  return action(async () => {
+    const guaranteeId = id(form);
+    const ctx = await closureContext(user, guaranteeId, closureFields(form));
+    const { message, review } = await draftClosure(ctx);
+    await storeClosureDraft(user, guaranteeId, ctx, message, review);
+    return `/employer/roles/${ctx.roleId}#closure-${guaranteeId}`;
+  });
+}
+
+export async function sendClosureDraftAction(form: FormData): Promise<never> {
+  const user = await requireActor();
+  return action(async () => {
+    const guaranteeId = id(form);
+    const draft = await closureDraft(user, guaranteeId);
+    if (!draft) throw new DomainError("Draft not found. Draft the message again.", 404);
+    const message = z.string().trim().min(1).max(1200).parse(field(form, "message"));
+    const ctx = await closureContext(user, guaranteeId, { status: draft.status, newDeadline: draft.new_deadline?.toISOString() });
+    const review = await reviewClosure(ctx, message);
+    const acknowledged = field(form, "acknowledged") === "yes" && message === draft.message;
+    if (review.blocking.length || (review.flags.length && !acknowledged)) {
+      await storeClosureDraft(user, guaranteeId, ctx, message, review);
+      return `/employer/roles/${ctx.roleId}#closure-${guaranteeId}`;
+    }
+    await closeGuarantee(user, guaranteeId, { status: ctx.status, newDeadline: ctx.newDeadline?.toISOString(), message }, review);
+    return "/employer";
+  });
+}
+
+export async function discardClosureDraftAction(form: FormData): Promise<never> {
+  const user = await requireActor();
+  return action(async () => `/employer/roles/${await discardClosureDraft(user, id(form))}`);
 }
 
 export async function closeRoleAction(form: FormData): Promise<never> {

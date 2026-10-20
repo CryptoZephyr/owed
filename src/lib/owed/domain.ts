@@ -17,7 +17,16 @@ export const roleInput = z.object({
 export const closureInput = z.object({
   status: z.enum(["moving_forward", "not_moving_forward", "still_deciding"]),
   newDeadline: z.iso.datetime({ offset: true }).optional(),
+  message: z.string().trim().min(1).max(1200).optional(),
 });
+
+export type ClosureStatus = z.infer<typeof closureInput>["status"];
+
+export function fixedClosureMessage(status: ClosureStatus, deadline?: Date): string {
+  if (status === "moving_forward") return "Thank you for your time. We are moving forward with your application.";
+  if (status === "not_moving_forward") return "Thank you for your time. We are not moving forward with your application.";
+  return `We are still deciding. We will send you a status by ${deadline?.toISOString()}.`;
+}
 
 export const intendedEmail = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
