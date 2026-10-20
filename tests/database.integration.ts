@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { randomBytes, randomUUID } from "node:crypto";
 import { database, query, transaction } from "../src/lib/owed/db";
 import type { Actor, Guarantee, Role } from "../src/lib/owed/domain";
-import { acceptInvite, approveRole, closeGuarantee, closeRole, correctInvitationEmail, createRole, enqueue, flagGuarantee, fundRole, hashToken, inviteCandidate, invitationDetails } from "../src/lib/owed/roles";
+import { acceptInvite, approveRole, closeGuarantee, closeRole, closureContext, closureDraft, correctInvitationEmail, createRole, enqueue, flagGuarantee, fundRole, hashToken, inviteCandidate, invitationDetails, storeClosureDraft } from "../src/lib/owed/roles";
 import { claim, finish, preflight, runWorker, schedule } from "../src/lib/owed/worker";
 import type { Provider } from "../src/lib/owed/worker";
 import { newLoginState, consumeLoginState } from "../src/lib/owed/auth";
@@ -58,6 +58,7 @@ before(async () => {
   await query(await readFile(new URL("../supabase/migrations/202610190001_owed.sql", import.meta.url), "utf8"));
   await query(await readFile(new URL("../supabase/migrations/202610190002_invitation_identity.sql", import.meta.url), "utf8"));
   await query(await readFile(new URL("../supabase/migrations/202610200001_email_outbox.sql", import.meta.url), "utf8"));
+  await query(await readFile(new URL("../supabase/migrations/202610200002_closure_drafts.sql", import.meta.url), "utf8"));
 });
 beforeEach(async () => {
   await query("truncate owed.candidates,owed.roles,owed.guarantees,owed.paypal_operations,owed.sessions,owed.login_states,owed.notifications cascade");
@@ -390,7 +391,8 @@ test("closure before the deadline releases eligibility, late closure cannot eras
   await inviteCandidate(employer, id, "Early", candidate.email!);
   await inviteCandidate(employer, id, "Late", `${candidate.email!.replace("@", "+other@")}`);
   const guarantees = await query<Guarantee>("select * from owed.guarantees order by created_at,id");
-  await closeGuarantee(employer, guarantees[0]!.id, { status: "not_moving_forward", message: "Ignored custom rejection reasons" });
+  await assert.rejects(closeGuarantee(employer, guarantees[0]!.id, { status: "not_moving_forward", message: "Custom rejection reasons" }), /Review/);
+  await closeGuarantee(employer, guarantees[0]!.id, { status: "not_moving_forward" });
   await due(id);
   await assert.rejects(closeGuarantee(employer, guarantees[1]!.id, { status: "moving_forward" }), /deadline has passed/);
   await runWorker(10, provider);
@@ -449,7 +451,7 @@ test("mismatched authorization, budget and payout recipient are stopped before t
 
 test("Supabase-facing tables have RLS enabled and no public schema privileges", async () => {
   const tables = await query<{ relrowsecurity: boolean }>("select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='owed' and c.relkind='r'");
-  assert.equal(tables.length, 7);
+  assert.equal(tables.length, 8);
   assert.equal(tables.every((table) => table.relrowsecurity), true);
   const grants = await query("select 1 from pg_namespace n,aclexplode(n.nspacl) a where n.nspname='owed' and a.grantee=0");
   assert.equal(grants.length, 0);
@@ -558,4 +560,37 @@ test("direct delivery refuses an address PayPal has not verified", async () => {
   } finally {
     delete process.env.EMAIL_DELIVER_TO_RECIPIENTS;
   }
+});
+
+test("an AI-drafted closure is private to the employer, needs a review to send, and clears its draft", async () => {
+  const id = await role();
+  await acceptInvite(candidate, await inviteCandidate(employer, id, "Candidate", candidate.email!));
+  const g = (await query<Guarantee>("select * from owed.guarantees where role_id=$1", [id]))[0]!;
+  const ctx = await closureContext(employer, g.id, { status: "not_moving_forward" });
+  await assert.rejects(closureContext(candidate, g.id, { status: "not_moving_forward" }), /not found/);
+  const review = { source: "ai" as const, model: "test-model", flags: [], blocking: [] };
+  const text = "We are not moving forward with your application. Thank you for your time.";
+  await assert.rejects(storeClosureDraft(candidate, g.id, ctx, text, review), /not found/);
+  await storeClosureDraft(employer, g.id, ctx, text, review);
+  assert.equal((await closureDraft(employer, g.id))?.message, text);
+  assert.equal(await closureDraft(candidate, g.id), undefined);
+  await assert.rejects(closeGuarantee(employer, g.id, { status: "not_moving_forward", message: text }), /Review/);
+  await assert.rejects(closeGuarantee(employer, g.id, { status: "not_moving_forward", message: text }, { ...review, blocking: ["Remove links"] }), /Review/);
+  await closeGuarantee(employer, g.id, { status: "not_moving_forward", message: text }, review);
+  const closed = (await query<Guarantee & { closure_review: { model: string } }>("select * from owed.guarantees where id=$1", [g.id]))[0]!;
+  assert.equal(closed.closure_message, text);
+  assert.equal(closed.closure_review.model, "test-model");
+  assert.equal(await closureDraft(employer, g.id), undefined);
+  assert.equal((await query<{ message: string }>("select message from owed.notifications where guarantee_id=$1", [g.id]))[0]?.message, text);
+});
+
+test("a custom still deciding message must state the new date", async () => {
+  const id = await role();
+  await acceptInvite(candidate, await inviteCandidate(employer, id, "Candidate", candidate.email!));
+  const g = (await query<Guarantee>("select * from owed.guarantees where role_id=$1", [id]))[0]!;
+  const later = new Date(g.deadline.getTime() + 86400000).toISOString();
+  const review = { source: "ai" as const, model: "test-model", flags: [], blocking: [] };
+  await assert.rejects(closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: `We are still deciding and will reply on ${later.slice(0, 10)}.` }, review), /new deadline/);
+  await closeGuarantee(employer, g.id, { status: "still_deciding", newDeadline: later, message: `We are still deciding and will reply by ${later.slice(0, 10)} ${later.slice(11, 16)} UTC.` }, review);
+  assert.equal((await query<Guarantee>("select * from owed.guarantees where id=$1", [g.id]))[0]?.extended, true);
 });

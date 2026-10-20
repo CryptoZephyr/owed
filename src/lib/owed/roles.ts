@@ -2,8 +2,9 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { query, transaction } from "./db";
-import { assertDeadline, closureInput, DomainError, intendedEmail, roleInput } from "./domain";
-import type { Actor, Guarantee, Role } from "./domain";
+import { assertDeadline, closureInput, DomainError, fixedClosureMessage, intendedEmail, mentionsDeadline, roleInput } from "./domain";
+import type { Actor, ClosureStatus, Guarantee, Role } from "./domain";
+import type { ClosureContext, Review } from "./closure-ai";
 
 export const hashToken = (value: string): string => createHash("sha256").update(value).digest("hex");
 
@@ -139,8 +140,9 @@ export async function acceptInvite(actor: Actor, token: string): Promise<void> {
   });
 }
 
-export async function closeGuarantee(actor: Actor, id: string, raw: unknown): Promise<void> {
+export async function closeGuarantee(actor: Actor, id: string, raw: unknown, review?: Review): Promise<void> {
   const input = closureInput.parse(raw);
+  if (input.message && (!review || review.blocking.length)) throw new DomainError("Review the message before sending it.");
   await transaction(async (db) => {
     const initial = (await db.query<Guarantee>("select * from owed.guarantees where id=$1", [id])).rows[0];
     if (!initial) throw new DomainError("Guarantee not found.", 404);
@@ -157,16 +159,60 @@ export async function closeGuarantee(actor: Actor, id: string, raw: unknown): Pr
       assertDeadline(deadline, now, role.expires_at);
       if (deadline <= g.deadline) throw new DomainError("The new deadline must be after the existing one.", 400);
     }
-    const message = input.status === "moving_forward" ? "Thank you for your time. We are moving forward with your application."
-      : input.status === "not_moving_forward" ? "Thank you for your time. We are not moving forward with your application."
-        : `We are still deciding. We will send you a status by ${deadline.toISOString()}.`;
+    const message = input.message ?? fixedClosureMessage(input.status, deadline);
+    if (input.status === "still_deciding" && !mentionsDeadline(message, deadline)) {
+      throw new DomainError("A still deciding message must state the new deadline date and time.", 400);
+    }
     await db.query(`update owed.guarantees set closure_status=$2, closure_message=$3, deadline=$4,
       extended=extended or $5, status=case when $5 then status else 'closed' end,
-      closed_at=case when $5 then null else now() end, nudged_at=null where id=$1`,
-    [id, input.status, message, deadline, input.status === "still_deciding"]);
+      closed_at=case when $5 then null else now() end, nudged_at=null, closure_review=$6 where id=$1`,
+    [id, input.status, message, deadline, input.status === "still_deciding", review ? JSON.stringify(review) : null]);
+    await db.query("delete from owed.closure_drafts where guarantee_id=$1", [id]);
     if (g.candidate_id) await db.query(`insert into owed.notifications (recipient_id,guarantee_id,kind,message)
       values ($1,$2,$3,$4) on conflict do nothing`, [g.candidate_id, id, input.status, message]);
   });
+}
+
+export type ClosureDraft = { guarantee_id: string; status: ClosureStatus; new_deadline: Date | null; message: string; review: Review };
+
+export async function closureContext(actor: Actor, id: string, raw: unknown): Promise<ClosureContext & { roleId: string }> {
+  const input = closureInput.parse(raw);
+  const g = (await query<Guarantee & { title: string; employer_name: string; role_status: string; expires_at: Date | null }>(
+    `select g.*, r.title, r.employer_name, r.status as role_status, r.expires_at from owed.guarantees g
+      join owed.roles r on r.id=g.role_id where g.id=$1 and r.employer_id=$2`, [id, actor.id]))[0];
+  if (!g) throw new DomainError("Guarantee not found.", 404);
+  if (g.role_status !== "active" || !["invited", "pending"].includes(g.status) || g.deadline <= new Date()) {
+    throw new DomainError("The deadline has passed or this guarantee is already settled. Closure cannot cancel an owed payment.");
+  }
+  let newDeadline: Date | undefined;
+  if (input.status === "still_deciding") {
+    if (g.extended || !input.newDeadline || !g.expires_at) throw new DomainError("A new date can be set once while the hold is valid.");
+    newDeadline = new Date(input.newDeadline);
+    assertDeadline(newDeadline, new Date(), g.expires_at);
+    if (newDeadline <= g.deadline) throw new DomainError("The new deadline must be after the existing one.", 400);
+  }
+  return { roleId: g.role_id, status: input.status, title: g.title, employerName: g.employer_name, newDeadline };
+}
+
+export async function storeClosureDraft(actor: Actor, id: string, ctx: ClosureContext, message: string, review: Review): Promise<void> {
+  const saved = await query(`insert into owed.closure_drafts (guarantee_id,status,new_deadline,message,review)
+    select g.id,$3,$4,$5,$6 from owed.guarantees g join owed.roles r on r.id=g.role_id where g.id=$1 and r.employer_id=$2
+    on conflict (guarantee_id) do update set status=excluded.status, new_deadline=excluded.new_deadline,
+      message=excluded.message, review=excluded.review, updated_at=now()
+    returning guarantee_id`, [id, actor.id, ctx.status, ctx.newDeadline ?? null, message, JSON.stringify(review)]);
+  if (!saved[0]) throw new DomainError("Guarantee not found.", 404);
+}
+
+export async function closureDraft(actor: Actor, id: string): Promise<ClosureDraft | undefined> {
+  return (await query<ClosureDraft>(`select d.* from owed.closure_drafts d join owed.guarantees g on g.id=d.guarantee_id
+    join owed.roles r on r.id=g.role_id where d.guarantee_id=$1 and r.employer_id=$2`, [id, actor.id]))[0];
+}
+
+export async function discardClosureDraft(actor: Actor, id: string): Promise<string> {
+  const rows = await query<{ role_id: string }>(`delete from owed.closure_drafts d using owed.guarantees g, owed.roles r
+    where d.guarantee_id=$1 and g.id=d.guarantee_id and r.id=g.role_id and r.employer_id=$2 returning g.role_id`, [id, actor.id]);
+  if (!rows[0]) throw new DomainError("Draft not found.", 404);
+  return rows[0].role_id;
 }
 
 export async function closeRole(actor: Actor, id: string): Promise<void> {
