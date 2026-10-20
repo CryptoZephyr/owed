@@ -9,10 +9,10 @@ This sheet follows the `typescript-integrate-paypal` workflow from APIMatic's Co
 | Fact | Value |
 | --- | --- |
 | Package | `paypal` (APIMatic-generated), not on npm |
-| Pinned source | `git+https://github.com/context-plugins/paypal-typescript-sdk.git#3a32a7f1556df08a83858734d9bf1cbfab724184` (committed 2026-10-06, version 2.29.0) |
-| Why this commit | Newest commit at least 7 days old. The plugin skills (v0.4.1) were refreshed against the 2026-10-12 commit `5d0df8a8817e`, which also reports 2.29.0 |
-| Map source used | `sdk-map.md`, `map/operations/orders.md`, `map/operations/payments.md` and `src/models/*.ts` read from the repository at the pinned commit. The installed-package route was not used because the local machine cannot run the install comfortably. CI installs and type-checks it |
-| Scheduled bump | Move to `5d0df8a8817e` on or after 2026-10-19 so the code matches the skills. Re-read the map after the bump, because the newer generator adds `ClientOptions.logging` |
+| Pinned source | `git+https://github.com/context-plugins/paypal-typescript-sdk.git#5d0df8a8817e5fdf2e2cd48e68f790ea4730aab2` (committed 2026-10-12, version 2.29.0) |
+| Why this commit | Seven days old on 2026-10-19 and matches the APIMatic skills v0.4.1 |
+| Map source used | Re-read `sdk-map.md` and `src/client-options.ts` at this exact commit on 2026-10-19. Operation contracts remain unchanged. Baseline install, build and typecheck passed on the untouched source |
+| ClientOptions.logging | `LoggingOptions`, with `level?: "off" \| "error" \| "warn" \| "info" \| "debug"` and `logRequestBody?: boolean`. Explicit level overrides `PAYPAL_CLIENT_LOG` |
 
 ## Repo survey
 
@@ -54,8 +54,8 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 ### `client.orders.authorizeOrder`
 
 - Signature: `authorizeOrder(request: Orders.AuthorizeOrderRequest, options?: RequestOptions): ApiPromise<OrderAuthorizeResponse, Orders.AuthorizeOrderError>`
-- Wire: `POST /v2/checkout/orders/{id}/authorize`. Body optional and omitted
-- Fields used: `id` (path), `payPalRequestId`, `prefer`
+- Wire: `POST /v2/checkout/orders/{id}/authorize`. Body sent as an empty `{}`. The SDK omits both the body and `Content-Type` when `body` is left out, and sandbox then rejects the call with `415 UNSUPPORTED_MEDIA_TYPE` (debug ID `ca4d6f16c9b79`, 2026-10-20). With `body: {}` the same unapproved order returned the expected `422 ORDER_NOT_APPROVED`
+- Fields used: `id` (path), `payPalRequestId`, `prefer`, `body: {}`
 - Returns `OrderAuthorizeResponse`. Members asserted: `purchaseUnits[0].payments.authorizations[0]` with `id`, `status`, `amount`. Also read `expirationTime`, `payer.payerId`, `payer.emailAddress`
 - Error arms (`Orders.AuthorizeOrderError`): `"error"` 400, `"error2"` 401, `"error3"` 403, `"error4"` 404, `"error5"` 422, `"error6"` 500, `"error7"` default, `"undeclared"`
 
@@ -74,13 +74,14 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 - Wire: `POST /v2/payments/authorizations/{authorization_id}/void`. No body
 - Fields used: `authorizationId`, `payPalRequestId`, `prefer`
 - Returns `PaymentAuthorization`. Members asserted: `id`, `status`, `amount`
+- The generated success decoder expects JSON even for PayPal's empty HTTP 204. The wrapper catches only `PaypalError(kind="decode", status=204)` and verifies the outcome with `getAuthorizedPayment`. Other errors are translated normally. Covered by a fake-fetch wire test.
 - Error arms (`Payments.VoidPaymentError`): `"error"` 401, `"error2"` 403, `"error3"` 404, `"error4"` 409, `"error5"` 422, `"error500"` 500, `"error6"` default, `"undeclared"`
 
 ### `client.payments.reauthorizePayment`
 
 - Signature: `reauthorizePayment(request: Payments.ReauthorizePaymentRequest, options?: RequestOptions): ApiPromise<PaymentAuthorization, Payments.ReauthorizePaymentError>`
-- Wire: `POST /v2/payments/authorizations/{authorization_id}/reauthorize`. Body optional and omitted, so the same amount is reauthorized
-- Fields used: `authorizationId`, `payPalRequestId`, `prefer`
+- Wire: `POST /v2/payments/authorizations/{authorization_id}/reauthorize`. Body sent as an empty `{}` with no `amount`, so the same amount is reauthorized. Omitting `body` drops `Content-Type`, and sandbox rejects that with `415 UNSUPPORTED_MEDIA_TYPE` (debug ID `ca4d6f1705962`, 2026-10-20)
+- Fields used: `authorizationId`, `payPalRequestId`, `prefer`, `body: {}`
 - Returns `PaymentAuthorization` with a new `id`. Members asserted: `id`, `status`, `amount`
 - Error arms (`Payments.ReauthorizePaymentError`): `"error"` 400, `"error2"` 401, `"error3"` 403, `"error4"` 404, `"error5"` 422, `"error500"` 500, `"error6"` default, `"undeclared"`
 - Sandbox fact: renewal is allowed once, from day 4 to day 29 after the original authorization
@@ -97,6 +98,13 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 - Signature: `getOrder(request: Orders.GetOrderRequest, options?: RequestOptions): ApiPromise<Order, Orders.GetOrderError>`
 - Wire: `GET /v2/checkout/orders/{id}`. Used only to settle an unknown authorize outcome
 - Fields used: `id`. `fields` (query) is left out
+
+### `client.payments.getCapturedPayment`
+
+- Re-read pinned `map/operations/payments.md` on 2026-10-19. Signature: `getCapturedPayment(request: Payments.GetCapturedPaymentRequest, options?: RequestOptions): ApiPromise<CapturedPayment, Payments.GetCapturedPaymentError>`
+- Wire: `GET /v2/payments/captures/{capture_id}`, OAuth2, no body. Request field: `captureId`. Returns `CapturedPayment`, asserted `id`, `status`, USD `amount`; optional `sellerReceivableBreakdown.paypalFee`.
+- Error arms: `error` 401, `error2` 403, `error3` 404, `error500` 500 without body, `error4` default, `undeclared`.
+- Used for read-only settlement of a persisted pending capture. It never initiates a new charge.
 - Error arms (`Orders.GetOrderError`): `"error"` 401, `"error2"` 404, `"error3"` default, `"undeclared"`
 
 ### Enums in scope (open enums, so any `switch` on a received value needs a default arm)
@@ -116,7 +124,7 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 - The error family is exported as `PaypalError`, narrowed on `err.kind`: `"api"`, `"decode"`, `"encode"`, `"connection"`, `"timeout"`, `"auth"`.
 - A malformed 2xx body rejects with `DecodeError`, and an omitted optional member is silently `undefined`. Every asserted member above is checked in code right after the call.
 - Retry policy: defaults kept, so `GET` is retried on `408, 429, 500, 502, 503, 504`, faults and timeouts, and `POST` is never retried. `retry.timeout` is set to `10_000` ms per attempt.
-- Logging: the pinned commit has no logger at all (map, "Not on this SDK"). Owed's own code never logs a request body. Revisit at the scheduled bump.
+- Logging: explicitly set `logging: { level: "off", logRequestBody: false }` in `src/lib/paypal/sdk.ts`. No per-call logging overrides. Neither secrets nor candidate data may be logged, including when `PAYPAL_CLIENT_LOG=debug` is set externally.
 - No pagination and no streaming are needed.
 - No webhook surface exists on the SDK. Webhook verification is REST, below.
 
@@ -133,20 +141,24 @@ The pinned SDK covers Orders, Payments, Vault, Transaction Search and Subscripti
 
 Every REST response is parsed with a zod schema before use.
 
+Log in with PayPal [documents](https://developer.paypal.com/api/identity/v1/userinfo-get) `email_verified` on the `userinfo` profile independently of `verified_account`. Owed requires both to view or accept an unclaimed invitation, and trusts `email_verified` only for the profile's `email` field, never a fallback address from `emails[]`. Employer-entered candidate PayPal emails are normalized and bound to the private invitation. A claimed guarantee remains bound to the original candidate's payer ID if their email changes. Missing verification fails closed. An employer can correct an unclaimed invitation before its deadline by replacing its intended email and hashed link in one transaction, without changing its guarantee or financial operation IDs. A stale link cannot claim even if its request began before the correction committed. Legacy invitations with no intended email can be corrected under the same rules. After the deadline, no recipient change is allowed and unreachable guarantees need operator review. The email is never a Payouts destination.
+
 ## 1b.1 Durable writes
 
 ### DUPLICATE CLAIMS
 
-The claim store is the Supabase table `paypal_operations` (not built yet), with a unique constraint on `(kind, business_key)`.
+The claim store is `owed.paypal_operations` in the dedicated Owed Supabase project `kjpbyrvnygiptznftyuk` (`eu-west-1`), with a unique constraint on `(kind, business_key)`. The migration is applied and the hosted constraint/RLS were verified. The schema and service also run against isolated local PostgreSQL 17 in tests. Setlo was paused with the owner's explicit approval to free the slot. No other application's database is used or repurposed.
 
 | Write | Where the claim is stored | What rejects the second one | Where that rejection is caught | Where in the code |
 | --- | --- | --- | --- | --- |
-| createOrder (role hold) | `paypal_operations` kind `create_hold`, key `roleId` | unique `(kind, business_key)` | Postgres `23505`, then reuse the stored order | TBD |
-| authorizeOrder | kind `authorize_hold`, key `orderId` | unique `(kind, business_key)` | `23505`, then reuse the stored authorization | TBD |
-| captureAuthorizedPayment (guarantee) | kind `charge_guarantee`, key `guaranteeId` | unique `(kind, business_key)` | `23505`, then reuse the stored capture | TBD |
-| voidPayment (role release) | kind `release_hold`, key `authorizationId` | unique `(kind, business_key)` | `23505`, then reuse the stored result | TBD |
-| reauthorizePayment (renewal) | kind `renew_hold`, key `authorizationId` | unique `(kind, business_key)` | `23505`, then reuse the stored new authorization | TBD |
-| Payouts (candidate payment) | kind `payout`, key `guaranteeId` | unique `(kind, business_key)` | `23505`, then reuse the stored batch id | TBD |
+| createOrder (role hold) | `owed.paypal_operations` kind `create_hold`, key `roleId` | unique `(kind, business_key)` | `enqueue` uses `ON CONFLICT DO NOTHING`, preserving the stored operation | `src/lib/owed/roles.ts` `fundRole` → `enqueue`; `src/lib/owed/worker.ts` `claim` → `createProvider` |
+| authorizeOrder | kind `authorize_hold`, key `orderId` | unique `(kind, business_key)` | `enqueue` consumes the uniqueness conflict without replacing input or result | `roles.ts` `approveRole` → `enqueue`; `worker.ts` `createProvider` |
+| captureAuthorizedPayment (guarantee) | kind `charge_guarantee`, key `guaranteeId` | unique `(kind, business_key)` | `enqueue` preserves the original capture claim | `worker.ts` `schedule` → `enqueue`; `createProvider` → `finish` |
+| voidPayment (role release) | kind `release_hold`, key `authorizationId` | unique `(kind, business_key)` | `enqueue` preserves the original release claim | `roles.ts` `closeRole` → `enqueue`; `worker.ts` `createProvider` |
+| reauthorizePayment (renewal) | kind `renew_hold`, key `authorizationId` | unique `(kind, business_key)` | `enqueue` preserves the original renewal claim | `worker.ts` `schedule` → `enqueue`; `createProvider` |
+| Payouts (candidate payment) | kind `payout`, key `guaranteeId` | unique `(kind, business_key)` | `enqueue` preserves the original payout claim | `worker.ts` `finish` or `roles.ts` `acceptInvite` → `enqueue`; `worker.ts` `createProvider` |
+
+`tests/database.integration.ts` verifies that a direct duplicate raises PostgreSQL `23505` and that eight simultaneous funding requests create one claim. Claims use `FOR UPDATE SKIP LOCKED`, a two-minute lease and a fencing token. Non-payout operations serialize per role. A pending/unclaimed payout does not block another candidate's operation. A completed operation is never claimed again. The immutable input, result and business key survive retries.
 
 The `PayPal-Request-Id` (and the Payouts `sender_batch_id`) is derived from the same business key: `owed-role-hold-{roleId}`, `owed-authorize-{orderId}`, `owed-charge-{guaranteeId}`, `owed-release-{roleId}-{authorizationId}`, `owed-renew-{authorizationId}`, `owed-{guaranteeId}`. It goes beside the claim, never instead of it.
 
@@ -154,22 +166,26 @@ The `PayPal-Request-Id` (and the Payouts `sender_batch_id`) is derived from the 
 
 | Write | The operation you re-read with | The reference you search by | Where in the code | The test that fails the connection |
 | --- | --- | --- | --- | --- |
-| createOrder | createOrder again with the same `PayPal-Request-Id` | `owed-role-hold-{roleId}` | TBD | TBD |
-| authorizeOrder | getOrder, then `purchaseUnits[0].payments.authorizations` | `orderId` | TBD | TBD |
-| captureAuthorizedPayment | captureAuthorizedPayment again with the same `PayPal-Request-Id` | `owed-charge-{guaranteeId}` | TBD | TBD |
-| voidPayment | getAuthorizedPayment, status `VOIDED` | `authorizationId` | TBD | TBD |
-| reauthorizePayment | reauthorizePayment again with the same `PayPal-Request-Id` | `owed-renew-{authorizationId}` | TBD | TBD |
-| Payouts | `GET /v1/payments/payouts/{batch_id}` when the id is known. Otherwise see Blocker B1 | `sender_batch_id` `owed-{guaranteeId}` | TBD | TBD |
+| createOrder | same request with same `PayPal-Request-Id`, only within five minutes; otherwise manual review | `owed-role-hold-{roleId}` | `worker.ts` `createProvider/create_hold`; `runWorker` catch persists unknown | `tests/paypal.test.ts` unknown create/charge recovery; `tests/database.integration.ts` per-write lost-connection cases |
+| authorizeOrder | getOrder, then `purchaseUnits[0].payments.authorizations`; bounded same-key replay only if absent | `orderId` | `holds.ts` `getOrderHold`; `worker.ts` `createProvider/authorize_hold` | `tests/paypal.test.ts` unknown authorization/void read-only settlement; database per-write lost-connection cases |
+| captureAuthorizedPayment | GET saved capture when known; otherwise GET authorization, bounded same-request-id replay | capture ID or `owed-charge-{guaranteeId}` | `holds.ts` `getCapture/getHold`; `worker.ts` `createProvider/charge_guarantee` | `tests/paypal.test.ts` failed write, unknown create/charge recovery, pending capture read; database per-write lost-connection cases |
+| voidPayment | GET authorization; `VOIDED`, `CAPTURED` or `EXPIRED` settles the unused hold. Otherwise bounded same-key void and readback | `authorizationId` | `holds.ts` `releaseHold/getHold`; `worker.ts` `createProvider/release_hold` | `tests/paypal.test.ts` empty-204 void readback and unknown authorization/void; database per-write lost-connection cases |
+| reauthorizePayment | GET original authorization, bounded same-request-id reauthorization; never replace the request ID | `owed-renew-{authorizationId}` | `worker.ts` `createProvider/renew_hold` → `getHold/renewHold` | `tests/paypal.test.ts` unknown renewal and old-ambiguity cutoff; database per-write lost-connection cases |
+| Payouts | GET known batch. If unknown, replay immutable sender batch within 29 days, extract duplicate's allowlisted batch ID, then poll it | batch ID or `owed-{guaranteeId}` | `payouts.ts` `duplicatePayoutBatch/payCandidate/getPayoutBatch`; `worker.ts` `createProvider/payout` | `tests/paypal.test.ts` duplicate replay polls original batch, hostile-link rejection; database per-write lost-connection cases |
 
-An `AuthError` or `EncodeError` means nothing was sent, so it is recorded as not sent and never re-read.
+An SDK `AuthError` records `credentials/sent=false`, leaves the claim queued and resets the send attempt, so it is not re-read as an unknown write. `EncodeError` stops for manual review. Other credential errors, rate limits, transport failures and provider errors retain the claim for reconciliation. Programmer errors are rethrown, leaving a recoverable lease rather than being mislabeled as a PayPal rejection. Each SDK call has a 15-second overall signal in addition to the 10-second per-attempt timeout. Body-read failures and invalid REST JSON are also translated, without logging response bodies.
 
 ## 1b.2 CROSS-OPERATION INVARIANTS
 
 | Invariant | Where the legal set comes from | Enforced where | The test that proves it |
 | --- | --- | --- | --- |
-| A charge, release or renewal uses the authorization recorded for that role | the role's hold record in Owed's database | service layer, before the claim | TBD |
-| The sum of charges on a hold never exceeds the hold amount | the role's hold record and its charge claims | service layer, before the claim | TBD |
-| A payout goes to the payer ID the candidate logged in with for that guarantee | the candidate's Log in with PayPal record | service layer, before the claim | TBD |
+| A charge, release or renewal uses the authorization recorded for that role | `owed.roles.authorization_id` | `schedule/closeRole` snapshot it under the role lock; `worker.ts` `preflight` rechecks before sending | `tests/database.integration.ts` mismatched authorization, budget and payout recipient |
+| The sum of charges on a hold never exceeds the hold amount | hold amount, funded capacity and immutable guarantee amounts | `inviteCandidate` serializes capacity allocation; `preflight` checks available budget; `finish` atomically records charge and queues payout; SQL CHECK protects total | `tests/database.integration.ts` capacity race, deadline pays once/releases remainder, mismatched budget |
+| A payout goes to the payer ID the candidate logged in with for that guarantee | immutable candidate identity from Log in with PayPal | `finish/acceptInvite` enqueue only the bound verified payer; `preflight` rechecks payer and captured guarantee amount | `tests/database.integration.ts` one verified account claims invite, mismatched payout recipient |
+
+### Authorization freshness and payout reconciliation
+
+Review hardening keeps the SDK request shapes, sandbox host and stable keys unchanged. Authorization claims snapshot the role deadline in immutable input. New authorization writes require an unexpired deadline, including bounded replays. Expired unknown authorizations can still be read by order ID. If a recovered or in-flight authorization no longer leaves a usable role deadline, persist the original authorization and queue its stable release instead of activating the role. Saved payout batches are reconciled read-only even if the candidate later loses verification, while first submissions still require a verified candidate and the original recipient/amount. A saved batch must match the guarantee's recorded batch.
 
 ## 1b.3 OPTIONAL FIELDS
 
@@ -195,7 +211,8 @@ An `AuthError` or `EncodeError` means nothing was sent, so it is recorded as not
 | --- | --- | --- |
 | `payPalRequestId` | that write's DUPLICATE CLAIMS and UNKNOWN OUTCOMES rows | ✅ |
 | `prefer` | the members asserted after the call | ✅ `"return=representation"` |
-| `body` | nothing (same amount on renewal) | ❌ |
+| `body` on authorizeOrder, reauthorizePayment | sandbox rejects the call with `415 UNSUPPORTED_MEDIA_TYPE` when it is omitted, because the SDK then drops `Content-Type` (same amount on renewal) | ✅ `{}` |
+| `body` on voidPayment | nothing | ❌ |
 | `payPalMockResponse`, `payPalClientMetadataId`, `payPalAuthAssertion` | nothing | ❌ |
 
 ### captureAuthorizedPayment
@@ -205,7 +222,7 @@ An `AuthError` or `EncodeError` means nothing was sent, so it is recorded as not
 | `payPalRequestId` | DUPLICATE CLAIMS and UNKNOWN OUTCOMES rows for capture | ✅ |
 | `prefer` | the members asserted after the call | ✅ `"return=representation"` |
 | `body.amount` | the guarantee amount for one ghosted candidate | ✅ |
-| `body.finalCapture` | the last charge on a role closes the hold | ✅ from the caller |
+| `body.finalCapture` | keep the remaining role hold until explicit role closure | ✅ always `false` in the service; separate release operation |
 | `body.invoiceId`, `noteToPayer`, `softDescriptor`, `paymentInstruction` | nothing | ❌ |
 | `payPalMockResponse`, `payPalAuthAssertion` | nothing | ❌ |
 
@@ -215,18 +232,18 @@ One mapping, applied by `translatePayPalFailure` in `src/lib/paypal/errors.ts` t
 
 | status | Owed answers | the caller reads | test |
 | --- | --- | --- | --- |
-| a `4xx` other than 401, 403, 429 | the same `4xx` | PayPal's reason (`details[0].issue` and `description`, or `message`) | TBD |
-| 401 or 403 | 502 | "PayPal rejected Owed's credentials." | TBD |
-| 429 | 503 | "PayPal is rate limiting Owed. Try again shortly." | TBD |
-| 5xx | 502 | "PayPal is having trouble right now." | TBD |
-| no response, on a write | per UNKNOWN OUTCOMES | "Outcome unknown. Owed is checking with PayPal." | TBD |
-| no response, on a read | 502 | "PayPal could not be reached." | TBD |
+| a `4xx` other than 401, 403, 429 | the same `4xx` | PayPal's reason (`details[0].issue` and `description`, or `message`) | `tests/paypal.test.ts` error boundary status families (422) |
+| 401 or 403 | 502 | "PayPal rejected Owed's credentials." | `tests/paypal.test.ts` error boundary status families (401, 403) |
+| 429 | 503 | "PayPal is rate limiting Owed. Try again shortly." | `tests/paypal.test.ts` error boundary status families (429) |
+| 5xx | 502 | "PayPal is having trouble right now." | `tests/paypal.test.ts` error boundary status families (503) |
+| no response, on a write | per UNKNOWN OUTCOMES | "Outcome unknown. Owed is checking with PayPal." | `tests/paypal.test.ts` write without response, SDK malformed responses and deadline; `tests/database.integration.ts` per-write lost-connection cases |
+| no response, on a read | 502 | "PayPal could not be reached." | `tests/paypal.test.ts` error boundary read connection failure |
 
 ## Assumptions and blockers
 
-- B1 (blocks the payout service, not this layer): PayPal's behaviour when a Payouts request is repeated with the same `sender_batch_id` is unverified. Test in sandbox before writing payout retries.
+- B1 resolved in sandbox on 2026-10-19: identical USD 1.00 Payouts requests with `sender_batch_id=owed-b1-20261019-v1`. First: HTTP 201, batch `2T9UZG3X22C74`, `PENDING`. Second: HTTP 400, `name=USER_BUSINESS_ERROR`, `message=User business error.`, `details[0].field=SENDER_BATCH_ID`, `issue=Batch with given sender_batch_id already exists`, debug ID `f669009a12868`. `details[0].link[0]` is a GET self link to the original batch. Reconcile duplicates by extracting only that batch ID from an allowlisted sandbox path, then GET it using Owed's configured host. Never follow arbitrary returned URLs or mint a new batch ID. PayPal documents deduplication for 30 days, so unknown outcomes older than that require manual reconciliation.
 - A1 (minor): PayPal returns the original response for a repeated `PayPal-Request-Id`. The retention window is undocumented here. Test in sandbox.
-- A2 (minor): the claim store and service layer are the next build step, so every `TBD` cell above stays open until they exist.
+- A2: schema, claim store, service, scheduler scripts and plain employer/candidate pages exist. On 2026-10-19 the owner approved pausing Setlo, after which Owed project `kjpbyrvnygiptznftyuk` was created and became `ACTIVE_HEALTHY`. The schema and `supabase/deadlines.sql` are applied, the unique constraint/RLS/private-schema permissions were verified, and the database-only deadline job is active every minute. Connection to the session pooler uses verified TLS with the public Supabase CA. Local PostgreSQL tests verify financial invariants with fake money, not the hosted database. The HTTP money worker is deliberately not scheduled until an app is deployed and both Vault values are configured. TasteCase remains unchanged.
 - A3 (minor): `env()` is parsed on first use. Add a startup check so a missing credential fails at boot.
 
 ## REQUIRED READING

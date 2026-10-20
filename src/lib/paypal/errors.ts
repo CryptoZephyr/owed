@@ -55,6 +55,9 @@ function byStatus(status: number, raw: unknown): PayPalFailure {
 }
 
 export function translatePayPalFailure(err: unknown, context: { write: boolean }): PayPalFailure {
+  if (err instanceof DOMException && ["AbortError", "TimeoutError"].includes(err.name)) {
+    return context.write ? { kind: "unknown_outcome", cause: "PayPal call deadline exceeded" } : { kind: "unreachable", cause: "PayPal call deadline exceeded" };
+  }
   if (err instanceof PaypalError) {
     switch (err.kind) {
       case "api": {
