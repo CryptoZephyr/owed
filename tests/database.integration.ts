@@ -9,6 +9,8 @@ import { claim, finish, preflight, runWorker, schedule } from "../src/lib/owed/w
 import type { Provider } from "../src/lib/owed/worker";
 import { newLoginState, consumeLoginState } from "../src/lib/owed/auth";
 import { PayPalRestConnectionError } from "../src/lib/paypal/rest";
+import { sendEmails } from "../src/lib/owed/email";
+import type { Mail, Mailer } from "../src/lib/owed/email";
 
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/owed_test");
 if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.pathname !== "/owed_test") throw new Error("Database tests require a dedicated localhost owed_test database.");
@@ -55,6 +57,7 @@ before(async () => {
   await query("drop schema if exists owed cascade");
   await query(await readFile(new URL("../supabase/migrations/202610190001_owed.sql", import.meta.url), "utf8"));
   await query(await readFile(new URL("../supabase/migrations/202610190002_invitation_identity.sql", import.meta.url), "utf8"));
+  await query(await readFile(new URL("../supabase/migrations/202610200001_email_outbox.sql", import.meta.url), "utf8"));
 });
 beforeEach(async () => {
   await query("truncate owed.candidates,owed.roles,owed.guarantees,owed.paypal_operations,owed.sessions,owed.login_states,owed.notifications cascade");
@@ -480,3 +483,54 @@ for (const kind of ["create_hold", "authorize_hold", "charge_guarantee", "payout
     assert.deepEqual(settled.input, op.input);
   });
 }
+
+test("closure and payout emails go once to the sandbox inbox with the intended recipient named", async () => {
+  process.env.EMAIL_SANDBOX_RECIPIENT = "inbox@example.test";
+  const sent: Mail[] = [];
+  const mailer: Mailer = async (mail) => { sent.push(mail); };
+  const id = await role(2);
+  await acceptInvite(candidate, await inviteCandidate(employer, id, "Candidate", candidate.email!));
+  const other = await person();
+  await acceptInvite(other, await inviteCandidate(employer, id, "Other", other.email!));
+  const closed = (await query<Guarantee>("select * from owed.guarantees where candidate_id=$1", [candidate.id]))[0]!;
+  await closeGuarantee(employer, closed.id, { status: "not_moving_forward" });
+  assert.equal(await sendEmails(5, mailer), 1);
+  assert.equal(await sendEmails(5, mailer), 0);
+  assert.equal(sent[0]!.to, "inbox@example.test");
+  assert.ok(sent[0]!.text.includes(`Intended recipient: ${candidate.email}`));
+  assert.ok(sent[0]!.text.includes("Role: Engineer at Example"));
+  assert.ok(sent[0]!.text.includes("We are not moving forward"));
+  await query("update owed.guarantees set deadline=now()-interval '1 second' where candidate_id=$1", [other.id]);
+  for (let i = 0; i < 3; i++) {
+    await runWorker(5, provider);
+    await query("update owed.paypal_operations set next_attempt_at=now() where state in ('queued','pending')");
+  }
+  assert.equal((await query<Guarantee>("select * from owed.guarantees where candidate_id=$1", [other.id]))[0]?.status, "paid");
+  sent.length = 0;
+  await sendEmails(5, mailer);
+  const paid = sent.filter((mail) => mail.subject === "Owed paid your guarantee");
+  assert.equal(paid.length, 1);
+  assert.ok(paid[0]!.text.includes(`Intended recipient: ${other.email}`));
+  assert.ok(paid[0]!.text.includes("USD 10.00"));
+});
+
+test("rejected emails retry three times, and interrupted or unknown sends are never repeated", async () => {
+  process.env.EMAIL_SANDBOX_RECIPIENT = "inbox@example.test";
+  const notify = async (state = "pending") => (await query<{ id: string }>(`insert into owed.notifications
+    (recipient_id,kind,message,email_state,email_claimed_at) values ($1,'still_deciding','Status',$2,
+    case when $2='sending' then now()-interval '10 minutes' end) returning id`, [candidate.id, state]))[0]!.id;
+  const stateOf = async (id: string) => (await query<{ email_state: string; email_attempts: number }>(
+    "select email_state,email_attempts from owed.notifications where id=$1", [id]))[0]!;
+  const rejected = await notify();
+  const rejecting: Mailer = async () => { throw Object.assign(new Error("rejected"), { responseCode: 550 }); };
+  for (let i = 0; i < 4; i++) await sendEmails(5, rejecting);
+  assert.deepEqual(await stateOf(rejected), { email_state: "failed", email_attempts: 3 });
+  const timedOut = await notify();
+  await sendEmails(5, async () => { throw Object.assign(new Error("timeout"), { code: "ETIMEDOUT" }); });
+  assert.equal((await stateOf(timedOut)).email_state, "unknown");
+  const interrupted = await notify("sending");
+  let calls = 0;
+  assert.equal(await sendEmails(5, async () => { calls++; }), 0);
+  assert.equal(calls, 0);
+  assert.equal((await stateOf(interrupted)).email_state, "unknown");
+});

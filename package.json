@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "next": "16.4.0",
+    "nodemailer": "10.1.0",
     "paypal": "git+https://github.com/context-plugins/paypal-typescript-sdk.git#5d0df8a8817e5fdf2e2cd48e68f790ea4730aab2",
     "pg": "8.16.3",
     "react": "19.3.0",

@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { sendEmails } from "@/lib/owed/email";
 import { runWorker } from "@/lib/owed/worker";
 
 export const runtime = "nodejs";
@@ -12,5 +13,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!secret || secret.length < 32 || !timingSafeEqual(hash(actual), hash(`Bearer ${secret}`))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json({ processed: await runWorker(1) }, { headers: { "Cache-Control": "no-store" } });
+  const processed = await runWorker(1);
+  const emailed = await sendEmails(5);
+  return NextResponse.json({ processed, emailed }, { headers: { "Cache-Control": "no-store" } });
 }
