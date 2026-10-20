@@ -64,6 +64,7 @@ test("authorize and readback map PayPal wire models to the same snapshot", async
   assert.equal(result.payerId, "PAYER");
   assert.deepEqual(await getOrderHold("ORDER", fake.client), { hold: result.hold, payerId: "PAYER" });
   assert.equal(fake.requests[0]?.requestId, "owed-authorize-ORDER");
+  assert.deepEqual(fake.requests[0]?.body, {});
 });
 
 test("charge sends integer-cents conversion and never final-captures the remaining role hold", async () => {
@@ -81,6 +82,7 @@ test("renew uses the original authorization business key, and void is verified b
   assert.equal((await renewHold("AUTH", fake.client)).authorizationId, "NEW");
   assert.equal((await releaseHold({ authorizationId: "NEW", roleId: "role-1" }, fake.client)).status, "VOIDED");
   assert.equal(fake.requests[0]?.requestId, "owed-renew-AUTH");
+  assert.deepEqual(fake.requests[0]?.body, {});
   assert.equal(fake.requests[1]?.requestId, "owed-release-role-1-NEW");
   assert.equal(fake.requests[2]?.method, "GET");
 });

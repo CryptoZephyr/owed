@@ -83,6 +83,7 @@ export async function authorizeRoleHold(orderId: string, client: PaypalClient = 
     id: orderId,
     payPalRequestId: `owed-authorize-${orderId}`,
     prefer: "return=representation",
+    body: {},
   }, { signal: AbortSignal.timeout(15_000) });
   const authorization = result.purchaseUnits?.[0]?.payments?.authorizations?.[0];
   return {
@@ -132,6 +133,7 @@ export async function renewHold(authorizationId: string, client: PaypalClient = 
     authorizationId,
     payPalRequestId: `owed-renew-${authorizationId}`,
     prefer: "return=representation",
+    body: {},
   }, { signal: AbortSignal.timeout(15_000) });
   return snapshot(authorization);
 }

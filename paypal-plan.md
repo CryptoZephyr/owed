@@ -54,8 +54,8 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 ### `client.orders.authorizeOrder`
 
 - Signature: `authorizeOrder(request: Orders.AuthorizeOrderRequest, options?: RequestOptions): ApiPromise<OrderAuthorizeResponse, Orders.AuthorizeOrderError>`
-- Wire: `POST /v2/checkout/orders/{id}/authorize`. Body optional and omitted
-- Fields used: `id` (path), `payPalRequestId`, `prefer`
+- Wire: `POST /v2/checkout/orders/{id}/authorize`. Body sent as an empty `{}`. The SDK omits both the body and `Content-Type` when `body` is left out, and sandbox then rejects the call with `415 UNSUPPORTED_MEDIA_TYPE` (debug ID `ca4d6f16c9b79`, 2026-10-20). With `body: {}` the same unapproved order returned the expected `422 ORDER_NOT_APPROVED`
+- Fields used: `id` (path), `payPalRequestId`, `prefer`, `body: {}`
 - Returns `OrderAuthorizeResponse`. Members asserted: `purchaseUnits[0].payments.authorizations[0]` with `id`, `status`, `amount`. Also read `expirationTime`, `payer.payerId`, `payer.emailAddress`
 - Error arms (`Orders.AuthorizeOrderError`): `"error"` 400, `"error2"` 401, `"error3"` 403, `"error4"` 404, `"error5"` 422, `"error6"` 500, `"error7"` default, `"undeclared"`
 
@@ -80,8 +80,8 @@ Every operation takes one flat request object and returns `ApiPromise<T, E>`. Al
 ### `client.payments.reauthorizePayment`
 
 - Signature: `reauthorizePayment(request: Payments.ReauthorizePaymentRequest, options?: RequestOptions): ApiPromise<PaymentAuthorization, Payments.ReauthorizePaymentError>`
-- Wire: `POST /v2/payments/authorizations/{authorization_id}/reauthorize`. Body optional and omitted, so the same amount is reauthorized
-- Fields used: `authorizationId`, `payPalRequestId`, `prefer`
+- Wire: `POST /v2/payments/authorizations/{authorization_id}/reauthorize`. Body sent as an empty `{}` with no `amount`, so the same amount is reauthorized. Omitting `body` drops `Content-Type`, and sandbox rejects that with `415 UNSUPPORTED_MEDIA_TYPE` (debug ID `ca4d6f1705962`, 2026-10-20)
+- Fields used: `authorizationId`, `payPalRequestId`, `prefer`, `body: {}`
 - Returns `PaymentAuthorization` with a new `id`. Members asserted: `id`, `status`, `amount`
 - Error arms (`Payments.ReauthorizePaymentError`): `"error"` 400, `"error2"` 401, `"error3"` 403, `"error4"` 404, `"error5"` 422, `"error500"` 500, `"error6"` default, `"undeclared"`
 - Sandbox fact: renewal is allowed once, from day 4 to day 29 after the original authorization
