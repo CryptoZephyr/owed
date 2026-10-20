@@ -160,6 +160,12 @@ export async function finish(op: Operation, outcome: Outcome): Promise<void> {
     if (op.kind === "payout") {
       await db.query(`update owed.guarantees set payout_batch_id=$2,payout_status=$3,status=$4 where id=$1`,
       [op.business_key, result.batchId, result.status, outcome.state === "succeeded" ? "paid" : result.status === "UNCLAIMED" ? "unclaimed" : "paying"]);
+      if (outcome.state === "succeeded") {
+        await db.query(`insert into owed.notifications (recipient_id,guarantee_id,kind,message)
+          select candidate_id, id, 'paid', 'No status arrived by the deadline, so Owed paid your guarantee of USD '
+            || to_char(amount_cents / 100.0, 'FM999999990.00') || ' through PayPal.'
+          from owed.guarantees where id=$1 and candidate_id is not null on conflict do nothing`, [op.business_key]);
+      }
     }
     if (outcome.state !== "succeeded") return;
     switch (op.kind) {
