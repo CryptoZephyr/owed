@@ -487,7 +487,7 @@ for (const kind of ["create_hold", "authorize_hold", "charge_guarantee", "payout
 test("closure and payout emails go once to the sandbox inbox with the intended recipient named", async () => {
   process.env.EMAIL_SANDBOX_RECIPIENT = "inbox@example.test";
   const sent: Mail[] = [];
-  const mailer: Mailer = async (mail) => { sent.push(mail); };
+  const mailer: Mailer = { verify: async () => {}, send: async (mail) => { sent.push(mail); } };
   const id = await role(2);
   await acceptInvite(candidate, await inviteCandidate(employer, id, "Candidate", candidate.email!));
   const other = await person();
@@ -514,23 +514,48 @@ test("closure and payout emails go once to the sandbox inbox with the intended r
   assert.ok(paid[0]!.text.includes("USD 10.00"));
 });
 
-test("rejected emails retry three times, and interrupted or unknown sends are never repeated", async () => {
+test("rejected emails back off and retry three times, unknown sends never repeat, outages claim nothing", async () => {
   process.env.EMAIL_SANDBOX_RECIPIENT = "inbox@example.test";
   const notify = async (state = "pending") => (await query<{ id: string }>(`insert into owed.notifications
     (recipient_id,kind,message,email_state,email_claimed_at) values ($1,'still_deciding','Status',$2,
     case when $2='sending' then now()-interval '10 minutes' end) returning id`, [candidate.id, state]))[0]!.id;
   const stateOf = async (id: string) => (await query<{ email_state: string; email_attempts: number }>(
     "select email_state,email_attempts from owed.notifications where id=$1", [id]))[0]!;
-  const rejected = await notify();
-  const rejecting: Mailer = async () => { throw Object.assign(new Error("rejected"), { responseCode: 550 }); };
-  for (let i = 0; i < 4; i++) await sendEmails(5, rejecting);
-  assert.deepEqual(await stateOf(rejected), { email_state: "failed", email_attempts: 3 });
-  const timedOut = await notify();
-  await sendEmails(5, async () => { throw Object.assign(new Error("timeout"), { code: "ETIMEDOUT" }); });
-  assert.equal((await stateOf(timedOut)).email_state, "unknown");
-  const interrupted = await notify("sending");
+  const ok = async () => {};
   let calls = 0;
-  assert.equal(await sendEmails(5, async () => { calls++; }), 0);
+  const rejected = await notify();
+  const rejecting: Mailer = { verify: ok, send: async () => { throw Object.assign(new Error("rejected"), { responseCode: 451 }); } };
+  await sendEmails(5, rejecting);
+  await sendEmails(5, rejecting);
+  assert.deepEqual(await stateOf(rejected), { email_state: "pending", email_attempts: 1 });
+  for (let i = 0; i < 3; i++) {
+    await query("update owed.notifications set email_next_attempt_at=now() where id=$1", [rejected]);
+    await sendEmails(5, rejecting);
+  }
+  assert.deepEqual(await stateOf(rejected), { email_state: "failed", email_attempts: 3 });
+  const down = await notify();
+  assert.equal(await sendEmails(5, { verify: async () => { throw new Error("down"); }, send: async () => { calls++; } }), 0);
+  assert.deepEqual(await stateOf(down), { email_state: "pending", email_attempts: 0 });
+  await query("delete from owed.notifications where id=$1", [down]);
+  const dropped = await notify();
+  await sendEmails(5, { verify: ok, send: async () => { throw Object.assign(new Error("dropped"), { code: "ECONNECTION" }); } });
+  assert.equal((await stateOf(dropped)).email_state, "unknown");
+  const interrupted = await notify("sending");
+  assert.equal(await sendEmails(5, { verify: ok, send: async () => { calls++; } }), 0);
   assert.equal(calls, 0);
   assert.equal((await stateOf(interrupted)).email_state, "unknown");
+});
+
+test("direct delivery refuses an address PayPal has not verified", async () => {
+  process.env.EMAIL_DELIVER_TO_RECIPIENTS = "true";
+  try {
+    await query("update owed.candidates set email_verified=false where id=$1", [candidate.id]);
+    const id = (await query<{ id: string }>("insert into owed.notifications (recipient_id,kind,message) values ($1,'paid','Paid') returning id", [candidate.id]))[0]!.id;
+    let calls = 0;
+    assert.equal(await sendEmails(5, { verify: async () => {}, send: async () => { calls++; } }), 0);
+    assert.equal(calls, 0);
+    assert.equal((await query<{ email_state: string }>("select email_state from owed.notifications where id=$1", [id]))[0]?.email_state, "failed");
+  } finally {
+    delete process.env.EMAIL_DELIVER_TO_RECIPIENTS;
+  }
 });
