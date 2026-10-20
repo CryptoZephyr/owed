@@ -211,7 +211,8 @@ Review hardening keeps the SDK request shapes, sandbox host and stable keys unch
 | --- | --- | --- |
 | `payPalRequestId` | that write's DUPLICATE CLAIMS and UNKNOWN OUTCOMES rows | ✅ |
 | `prefer` | the members asserted after the call | ✅ `"return=representation"` |
-| `body` | nothing (same amount on renewal) | ❌ |
+| `body` on authorizeOrder, reauthorizePayment | sandbox rejects the call with `415 UNSUPPORTED_MEDIA_TYPE` when it is omitted, because the SDK then drops `Content-Type` (same amount on renewal) | ✅ `{}` |
+| `body` on voidPayment | nothing | ❌ |
 | `payPalMockResponse`, `payPalClientMetadataId`, `payPalAuthAssertion` | nothing | ❌ |
 
 ### captureAuthorizedPayment
