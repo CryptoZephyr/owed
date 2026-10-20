@@ -29,7 +29,9 @@ export function deadlineText(date: Date): string {
 
 export function mentionsDeadline(message: string, date: Date): boolean {
   const iso = date.toISOString();
-  return message.includes(iso.slice(0, 10)) && message.includes(iso.slice(11, 16));
+  const expected = `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+  if (!message.includes(`${expected} UTC`) && !message.includes(iso)) return false;
+  return [...message.matchAll(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/g)].every((match) => match[0].replace("T", " ") === expected);
 }
 
 export function fixedClosureMessage(status: ClosureStatus, deadline?: Date): string {
