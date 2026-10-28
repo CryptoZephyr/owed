@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { appOrigin, logout, requireActor } from "@/lib/owed/auth";
@@ -84,7 +85,8 @@ export async function draftClosureAction(form: FormData): Promise<never> {
     const ctx = await closureContext(user, guaranteeId, closureFields(form));
     const { message, review } = await draftClosure(ctx);
     await storeClosureDraft(user, guaranteeId, ctx, message, review);
-    return `/employer/roles/${ctx.roleId}#closure-${guaranteeId}`;
+    revalidatePath(`/employer/roles/${ctx.roleId}`);
+    return `/employer/roles/${ctx.roleId}?draft=${guaranteeId}`;
   });
 }
 
@@ -102,7 +104,8 @@ export async function sendClosureDraftAction(form: FormData): Promise<never> {
     const acknowledged = field(form, "acknowledged") === "yes" && unchanged;
     if (review.blocking.length || (review.flags.length && !acknowledged)) {
       await storeClosureDraft(user, guaranteeId, ctx, message, review);
-      return `/employer/roles/${ctx.roleId}#closure-${guaranteeId}`;
+      revalidatePath(`/employer/roles/${ctx.roleId}`);
+    return `/employer/roles/${ctx.roleId}?draft=${guaranteeId}`;
     }
     await closeGuarantee(user, guaranteeId, { status: ctx.status, newDeadline: ctx.newDeadline?.toISOString(), message }, review);
     return "/employer";

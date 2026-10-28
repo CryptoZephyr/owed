@@ -7,7 +7,7 @@ export type ClosureContext = { status: ClosureStatus; title: string; employerNam
 export type Review = { source: "ai" | "fixed" | "unavailable"; model?: string; flags: string[]; blocking: string[] };
 export type Chat = (system: string, user: string) => Promise<string>;
 
-export const closureModel = (): string => process.env.OPENROUTER_MODEL || "minimax/minimax-m3.1-flash:free";
+export const closureModel = (): string => process.env.OPENROUTER_MODEL || "nvidia/nemotron-3.5-super-vl:free";
 
 const rules = "Owed sends closure messages to job candidates after an interview. A closure message tells the candidate one status and nothing else. "
   + "It never gives reasons or feedback, never compares the candidate with others, never promises future roles or outcomes, and never mentions age, "
@@ -32,9 +32,9 @@ export async function openRouterChat(system: string, user: string): Promise<stri
   if (!key) throw new Error("OPENROUTER_API_KEY is not set.");
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(30_000),
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "Owed" },
-    body: JSON.stringify({ model: closureModel(), temperature: 0.2, max_tokens: 800,
+    body: JSON.stringify({ model: closureModel(), temperature: 0.2, max_tokens: 2000, reasoning: { effort: "low" },
       messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
   });
   if (!response.ok) throw new Error(`OpenRouter returned HTTP ${response.status}.`);
