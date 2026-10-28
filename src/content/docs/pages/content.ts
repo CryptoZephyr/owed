@@ -106,7 +106,7 @@ export const DOC_CONTENT: Record<string, DocContent> = {
   ]),
   "architecture/never-charged-twice": page("Owed saves one record for each money-moving task and checks PayPal before trying again.", [
     section("one-business-record", "One record for each payment", ["Owed saves each hold, candidate charge, payout, renewal, and release, so it can check what happened before trying again."]),
-    section("same-key-on-retry", "Keep the same identity", ["When PayPal says a request was already made, Owed checks the original result instead of starting a new payment."]),
+    section("same-key-on-retry", "PayPal recognizes a repeat request", ["Each payment task keeps the same request identity every time Owed tries it. If PayPal already handled that request, it returns the original result, so Owed doesn't start a second payment."]),
     section("unknown-is-not-failure", "An unknown result stays unknown", ["If the connection ends after Owed asks PayPal to move money, it checks with PayPal. If the result still isn't clear, the item needs operator review."]),
   ], ["The PayPal request identity is derived from the role, authorization, or guarantee."]),
   "architecture/ai-and-emails": page("AI drafts closure wording and checks messages for risky text. Owed's fixed rules, not AI, control money.", [
