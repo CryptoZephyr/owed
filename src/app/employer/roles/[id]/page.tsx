@@ -63,7 +63,7 @@ export default async function RolePage({ params, searchParams }: {
         </div>
         <div className="stack-16">
           {role.status === "closed" ? <Stamp kind="released" amount={money(role.hold_cents - role.charged_cents)} time={released ? formatTime(released.updated_at) : undefined} />
-            : <Deadline deadline={role.deadline} start={role.created_at} now={now} />}
+            : <Deadline deadline={role.deadline} start={role.authorized_at} now={now} />}
         </div>
       </section>
 
