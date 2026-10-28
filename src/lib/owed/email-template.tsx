@@ -24,6 +24,8 @@ export type EmailTemplateProps = {
   employerName?: string | null;
   amountCents?: number | null;
   deadline?: Date | null;
+  candidateLabel?: string | null;
+  roleUrl?: string;
   paypalReference?: string | null;
   paidAt?: Date | null;
   intendedRecipient?: string;
@@ -138,11 +140,17 @@ function DeadlineReceipt(props: EmailTemplateProps) {
     <>
       <StatusWord label="DUE SOON" color={tokens.status.amber} />
       {displayRole(props) ? <ContextLine>{displayRole(props)!}</ContextLine> : null}
+      {props.candidateLabel ? <LeaderRow label="Candidate" value={props.candidateLabel} /> : null}
       <LeaderRow label="Guarantee" value={amount(props.amountCents)} />
       <LeaderRow label="Reply due" value={props.deadline ? formatDeadline(props.deadline) : ""} />
       <Text style={{ ...bodyStyle, margin: `${tokens.space.s5}px 0 0` }}>
         If no status arrives by the deadline, Owed will pay the guarantee to the candidate.
       </Text>
+      {props.roleUrl ? (
+        <Text style={{ ...bodyStyle, margin: `${tokens.space.s3}px 0 0` }}>
+          <a href={props.roleUrl} style={{ color: tokens.color.text }}>Open the role</a>
+        </Text>
+      ) : null}
     </>
   );
 }

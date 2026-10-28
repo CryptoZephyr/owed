@@ -9,7 +9,8 @@ export type Mailer = { verify(): Promise<void>; send(mail: Mail): Promise<void> 
 
 type Outgoing = {
   id: string; kind: string; message: string; email: string | null; email_verified: boolean; name: string | null;
-  title: string | null; employer_name: string | null; amount_cents: number | null; deadline: Date | null;
+  title: string | null; employer_name: string | null; candidate_label: string | null; role_id: string | null;
+  amount_cents: number | null; deadline: Date | null;
   payout_batch_id: string | null; created_at: Date;
 };
 
@@ -55,13 +56,16 @@ export function emailText(input: {
   employerName: string | null;
   message: string;
   appUrl?: string;
+  candidateLabel?: string | null;
+  roleUrl?: string;
 }): string {
   return [
     input.to === input.intended ? undefined : `Sandbox delivery. Intended recipient: ${input.intended}`,
     input.name ? `Hello ${input.name},` : "Hello,",
     input.title && input.employerName ? `Role: ${input.title} at ${input.employerName}` : undefined,
+    input.candidateLabel ? `Candidate: ${input.candidateLabel}` : undefined,
     input.message,
-    input.appUrl,
+    input.roleUrl ? `Open the role: ${input.roleUrl}` : input.appUrl,
   ].filter(Boolean).join("\n\n");
 }
 
@@ -110,7 +114,7 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       from next where n.id=next.id returning n.id`);
     if (!claimed[0]) break;
     const n = (await query<Outgoing>(`select n.id,n.kind,n.message,n.created_at,c.email,c.email_verified,c.name,
-        r.title,r.employer_name,g.amount_cents,g.deadline,g.payout_batch_id
+        r.title,r.employer_name,g.candidate_label,g.role_id,g.amount_cents,g.deadline,g.payout_batch_id
       from owed.notifications n join owed.candidates c on c.id=n.recipient_id
       left join owed.guarantees g on g.id=n.guarantee_id left join owed.roles r on r.id=g.role_id
       where n.id=$1`, [claimed[0].id]))[0]!;
@@ -119,6 +123,8 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       continue;
     }
     const to = deliveryAddress(n.email);
+    const appOrigin = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+    const roleUrl = n.kind === "deadline_nudge" && n.role_id ? `${appOrigin}/employer/roles/${n.role_id}` : undefined;
     const text = emailText({
       to,
       intended: n.email,
@@ -126,7 +132,9 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       title: n.title,
       employerName: n.employer_name,
       message: n.message,
-      appUrl: process.env.APP_URL,
+      appUrl: roleUrl ? undefined : process.env.APP_URL,
+      candidateLabel: n.kind === "deadline_nudge" ? n.candidate_label : undefined,
+      roleUrl,
     });
     try {
       await sendMailWithHtmlFallback(mailer, {
@@ -136,13 +144,15 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
         messageId: `<${n.id}@notifications.owed>`,
       }, () => renderNotificationEmail({
         kind: n.kind,
-        appOrigin: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
+        appOrigin,
         message: n.message,
         name: n.name,
         title: n.title,
         employerName: n.employer_name,
         amountCents: n.amount_cents,
         deadline: n.deadline,
+        candidateLabel: n.kind === "deadline_nudge" ? n.candidate_label : undefined,
+        roleUrl,
         paypalReference: n.payout_batch_id,
         paidAt: n.created_at,
         intendedRecipient: to === n.email ? undefined : n.email ?? undefined,
