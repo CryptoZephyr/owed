@@ -513,7 +513,7 @@ test("closure and payout emails go once to the sandbox inbox with the intended r
   const paid = sent.filter((mail) => mail.subject === "Owed paid your guarantee");
   assert.equal(paid.length, 1);
   assert.ok(paid[0]!.text.includes(`Intended recipient: ${other.email}`));
-  assert.ok(paid[0]!.text.includes("USD 10.00"));
+  assert.ok(paid[0]!.text.includes("$10.00"));
 });
 
 test("rejected emails back off and retry three times, unknown sends never repeat, outages claim nothing", async () => {

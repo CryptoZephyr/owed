@@ -4,7 +4,7 @@ import type { StampKind } from "@/components/Stamp";
 export function money(cents: number): string {
   const sign = cents < 0 ? "-" : "";
   const c = Math.abs(cents);
-  return `${sign}USD ${Math.trunc(c / 100).toLocaleString("en-US")}.${String(c % 100).padStart(2, "0")}`;
+  return `${sign}$${Math.trunc(c / 100).toLocaleString("en-US")}.${String(c % 100).padStart(2, "0")}`;
 }
 
 export function formatTime(date: Date): string {

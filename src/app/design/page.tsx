@@ -43,7 +43,7 @@ export default function DesignPage() {
         <p className={s.landing}>Promise every candidate an answer.</p>
         <h1>Page title in Newsreader</h1>
         <h2>Section title</h2>
-        <p className={s.figure}>USD 1,250.00</p>
+        <p className={s.figure}>$1,250.00</p>
         <p>Body copy is IBM Plex Sans at 16 / 24. Short, direct sentences that name the money and the date.</p>
         <p className="small secondary">Label and supporting copy, 14 / 20.</p>
         <Status word="Status word" />
@@ -60,16 +60,16 @@ export default function DesignPage() {
 
       <Block title="Stamps">
         <div className={s.row}>
-          <Stamp kind="paid" amount="USD 25.00" reference="2T9UZG3X22C74" time="2026-10-28 12:01 UTC" />
-          <Stamp kind="released" amount="USD 50.00" time="2026-10-28 12:05 UTC" />
-          <Stamp kind="unclaimed" amount="USD 25.00" />
+          <Stamp kind="paid" amount="$25.00" reference="2T9UZG3X22C74" time="2026-10-28 12:01 UTC" />
+          <Stamp kind="released" amount="$50.00" time="2026-10-28 12:05 UTC" />
+          <Stamp kind="unclaimed" amount="$25.00" />
         </div>
       </Block>
 
       <Block title="Receipt and amounts">
         <div className={s.narrow}><Receipt label="Example hold">
-          <Line label="Guarantee per place" value="USD 25.00" /><Line label="Places used" value="2 of 3" />
-          <Line label="Charged to candidates" value="USD 0.00" /><Line label="Held in PayPal" value="USD 75.00" total />
+          <Line label="Guarantee per place" value="$25.00" /><Line label="Places used" value="2 of 3" />
+          <Line label="Charged to candidates" value="$0.00" /><Line label="Held in PayPal" value="$75.00" total />
         </Receipt></div>
       </Block>
 

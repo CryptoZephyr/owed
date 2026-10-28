@@ -2,7 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertDeadline, roleInput } from "../src/lib/owed/domain";
 import { usd, toCents } from "../src/lib/money";
+import { money } from "../src/lib/present";
 import { appOrigin, localPath } from "../src/lib/owed/auth";
+
+test("display money uses dollar signs and thousands separators", () => {
+  assert.equal(money(2500), "$25.00");
+  assert.equal(money(125000), "$1,250.00");
+  assert.equal(money(0), "$0.00");
+  assert.equal(money(-500), "-$5.00");
+});
 
 test("money uses integer cents at both boundaries", () => {
   assert.deepEqual(usd(12345), { currencyCode: "USD", value: "123.45" });

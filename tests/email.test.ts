@@ -28,10 +28,15 @@ const emails = [
 for (const [kind, status] of emails) {
   test(`${kind} email includes its amount and status`, async () => {
     const html = await renderNotificationEmail({ ...shared, kind });
-    assert.ok(html.includes("USD 25.00"));
+    assert.ok(html.includes("$25.00"));
     assert.ok(html.includes(status));
   });
 }
+
+test("email amounts use dollar signs and thousands separators", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "paid", amountCents: 125000 });
+  assert.ok(html.includes("$1,250.00"));
+});
 
 test("not-moving-forward uses the neutral rule color", async () => {
   const html = await renderNotificationEmail({ ...shared, kind: "not_moving_forward" });
@@ -55,7 +60,7 @@ test("paid email stamps the amount and payment details above its leader row", as
   assert.ok(html.includes("border:2px solid #1F2421"));
   assert.ok(html.includes("border-radius:0px"));
   assert.ok(html.includes("PayPal reference: PAYOUT-123 · Paid at: 28 Oct 2026, 11:00 UTC"));
-  assert.ok(html.indexOf("PAYOUT-123") < html.lastIndexOf("USD 25.00"));
+  assert.ok(html.indexOf("PAYOUT-123") < html.lastIndexOf("$25.00"));
 });
 
 test("paid email shows role context above the stamp in secondary label text", async () => {
