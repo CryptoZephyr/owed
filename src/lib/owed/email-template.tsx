@@ -148,15 +148,56 @@ function DeadlineReceipt(props: EmailTemplateProps) {
 }
 
 function PaidReceipt(props: EmailTemplateProps) {
+  const paymentDetails = [
+    props.paypalReference ? `PayPal reference: ${props.paypalReference}` : "PayPal reference unavailable",
+    props.paidAt ? `Paid at: ${formatDeadline(props.paidAt)}` : undefined,
+  ].filter(Boolean).join(" · ");
+
   return (
     <>
-      <StatusWord label="PAID" color={tokens.color.text} />
+      <table
+        role="presentation"
+        width="100%"
+        cellPadding={0}
+        cellSpacing={0}
+        style={{
+          border: `2px solid ${tokens.color.text}`,
+          borderRadius: `${tokens.radius.panel}px`,
+          marginBottom: `${tokens.space.s3}px`,
+        }}
+      >
+        <tbody>
+          <tr>
+            <td style={{ padding: `${tokens.space.s3}px ${tokens.space.s4}px` }}>
+              <Text style={{ ...statusStyle, marginBottom: `${tokens.space.s2}px` }}>PAID</Text>
+              <Text
+                style={{
+                  color: tokens.color.text,
+                  fontFamily: emailSans,
+                  fontSize: `${tokens.type.figure.size}px`,
+                  fontWeight: 500,
+                  lineHeight: `${tokens.type.figure.lineHeight}px`,
+                  margin: `0 0 ${tokens.space.s2}px`,
+                }}
+              >
+                {amount(props.amountCents)}
+              </Text>
+              <Text
+                style={{
+                  color: tokens.color.textSecondary,
+                  fontFamily: emailMono,
+                  fontSize: `${tokens.type.reference.size}px`,
+                  lineHeight: `${tokens.type.reference.lineHeight}px`,
+                  margin: 0,
+                }}
+              >
+                {paymentDetails}
+              </Text>
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <LeaderRow label="Paid" value={amount(props.amountCents)} />
-      <Text style={{ color: tokens.color.textSecondary, fontFamily: emailMono, fontSize: `${tokens.type.reference.size}px`, lineHeight: `${tokens.type.reference.lineHeight}px`, margin: `${tokens.space.s5}px 0 0` }}>
-        PayPal reference: {props.paypalReference ?? "Unavailable"}
-        <br />
-        Paid at: {props.paidAt ? formatDeadline(props.paidAt) : ""}
-      </Text>
     </>
   );
 }

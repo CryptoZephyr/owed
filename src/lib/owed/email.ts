@@ -4,7 +4,7 @@ import type { Transporter } from "nodemailer";
 import { query } from "./db";
 import { renderNotificationEmail } from "./email-template";
 
-export type Mail = { to: string; subject: string; text: string; html: string; messageId: string };
+export type Mail = { to: string; subject: string; text: string; html?: string; messageId: string };
 export type Mailer = { verify(): Promise<void>; send(mail: Mail): Promise<void> };
 
 type Outgoing = {
@@ -65,6 +65,20 @@ export function emailText(input: {
   ].filter(Boolean).join("\n\n");
 }
 
+export async function sendMailWithHtmlFallback(
+  mailer: Pick<Mailer, "send">,
+  mail: Omit<Mail, "html">,
+  renderHtml: () => Promise<string>,
+): Promise<void> {
+  let html: string | undefined;
+  try {
+    html = await renderHtml();
+  } catch {
+    html = undefined;
+  }
+  await mailer.send(html === undefined ? mail : { ...mail, html });
+}
+
 function definitelyNotSent(error: unknown): boolean {
   const e = error as { responseCode?: unknown; code?: unknown };
   return typeof e.responseCode === "number" || e.code === "EAUTH";
@@ -114,21 +128,25 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       message: n.message,
       appUrl: process.env.APP_URL,
     });
-    const html = await renderNotificationEmail({
-      kind: n.kind,
-      appOrigin: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
-      message: n.message,
-      name: n.name,
-      title: n.title,
-      employerName: n.employer_name,
-      amountCents: n.amount_cents,
-      deadline: n.deadline,
-      paypalReference: n.payout_batch_id,
-      paidAt: n.created_at,
-      intendedRecipient: to === n.email ? undefined : n.email,
-    });
     try {
-      await mailer.send({ to, subject: subjects[n.kind] ?? "Owed update", text, html, messageId: `<${n.id}@notifications.owed>` });
+      await sendMailWithHtmlFallback(mailer, {
+        to,
+        subject: subjects[n.kind] ?? "Owed update",
+        text,
+        messageId: `<${n.id}@notifications.owed>`,
+      }, () => renderNotificationEmail({
+        kind: n.kind,
+        appOrigin: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
+        message: n.message,
+        name: n.name,
+        title: n.title,
+        employerName: n.employer_name,
+        amountCents: n.amount_cents,
+        deadline: n.deadline,
+        paypalReference: n.payout_batch_id,
+        paidAt: n.created_at,
+        intendedRecipient: to === n.email ? undefined : n.email ?? undefined,
+      }));
       await query("update owed.notifications set email_state='sent', email_sent_at=now(), email_error=null where id=$1 and email_state='sending'", [n.id]);
       sent++;
     } catch (error) {

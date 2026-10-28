@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { formatDeadline } from "../src/lib/format";
-import { emailText } from "../src/lib/owed/email";
+import { emailText, sendMailWithHtmlFallback } from "../src/lib/owed/email";
+import type { Mail } from "../src/lib/owed/email";
 import { renderNotificationEmail } from "../src/lib/owed/email-template";
 
 const shared = {
@@ -38,6 +39,14 @@ test("not-moving-forward uses the neutral rule color", async () => {
   assert.ok(!html.includes("#B3402F"));
 });
 
+test("paid email stamps the amount and payment details above its leader row", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "paid" });
+  assert.ok(html.includes("border:2px solid #1F2421"));
+  assert.ok(html.includes("border-radius:0px"));
+  assert.ok(html.includes("PayPal reference: PAYOUT-123 · Paid at: 28 Oct 2026, 11:00 UTC"));
+  assert.ok(html.indexOf("PAYOUT-123") < html.lastIndexOf("USD 25.00"));
+});
+
 test("plain-text content keeps the existing sandbox body and spacing", () => {
   assert.equal(emailText({
     to: "sandbox@example.test",
@@ -54,6 +63,21 @@ test("plain-text content keeps the existing sandbox body and spacing", () => {
     "We are moving forward.",
     "https://owed.example",
   ].join("\n\n"));
+});
+
+test("sends plain text when HTML rendering fails", async () => {
+  const sent: Mail[] = [];
+  const mail = {
+    to: "candidate@example.test",
+    subject: "Your application status",
+    text: "The existing plain-text message.",
+    messageId: "<notification@notifications.owed>",
+  };
+  await sendMailWithHtmlFallback({ send: async (message) => { sent.push(message); } }, mail, async () => {
+    throw new Error("render failed");
+  });
+  assert.deepEqual(sent, [mail]);
+  assert.equal(sent[0]?.html, undefined);
 });
 
 test("deadline formatter writes UTC dates in the design-system format", () => {
