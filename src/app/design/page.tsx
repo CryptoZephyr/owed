@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Components · Owed", robots: { index
 const day = 86400000;
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="section" aria-label={title}><h2>{title}</h2><div className={s.block}>{children}</div></section>;
+  return <section className="section" aria-label={title} id={title.toLowerCase().replace(/[^a-z]+/g, "-")}><h2>{title}</h2><div className={s.block}>{children}</div></section>;
 }
 
 export default function DesignPage() {
