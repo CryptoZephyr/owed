@@ -39,7 +39,7 @@ test("hard rules block a missing new date and links whatever the model says", as
   assert.equal((await reviewClosure(deciding, "We are still deciding.", clean)).blocking.length, 1);
   assert.equal((await reviewClosure(deciding, "We are still deciding and will reply by 2026-10-30.", clean)).blocking.length, 1);
   assert.deepEqual(await reviewClosure(deciding, "We are still deciding and will reply by 2026-10-30 12:00 UTC.", clean),
-    { source: "ai", model: "minimax/minimax-m3.1-flash:free", flags: [], blocking: [] });
+    { source: "ai", model: "nvidia/nemotron-3.5-super-vl:free", flags: [], blocking: [] });
   for (const wrong of ["We will reply by 2026-10-30 11:00 UTC. Our office opens at 12:00.", "We will reply by 2026-10-30 12:00.",
     "We will reply by 2026-10-30 12:00 UTC or 2026-10-30 11:00 UTC."]) assert.equal(blockingFlags(deciding, wrong).length, 1, wrong);
   assert.equal(blockingFlags(deciding, "We will reply by 2026-10-30 12:00 UTC, which is 2026-10-30T12:00 in ISO form.").length, 0);
