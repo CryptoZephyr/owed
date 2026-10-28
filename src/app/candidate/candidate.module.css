@@ -1,0 +1,4 @@
+.list { display: grid; }
+.item { padding: var(--space-24) 0; border-top: 1px solid var(--color-text); }
+.item:last-child { border-bottom: 1px solid var(--color-border); }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-16); flex-wrap: wrap; }

@@ -1,0 +1,54 @@
+.button {
+  --ink: var(--color-canvas);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px var(--space-24);
+  border: 1px solid var(--color-action);
+  border-radius: var(--radius-control);
+  background: var(--color-action);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  line-height: 24px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button:hover, .button[data-hovered] { background: var(--color-action-hover); border-color: var(--color-action-hover); color: var(--ink); }
+.button[data-variant="secondary"] { --ink: var(--color-action); background: transparent; }
+.button[data-variant="secondary"]:hover, .button[data-variant="secondary"][data-hovered] { background: transparent; --ink: var(--color-action-hover); border-color: var(--color-action-hover); }
+.button[data-variant="quiet"] { --ink: var(--color-action); background: transparent; border-color: transparent; padding-left: 0; padding-right: 0; }
+.button[data-variant="quiet"]:hover, .button[data-variant="quiet"][data-hovered] { background: transparent; border-color: transparent; --ink: var(--color-action-hover); }
+.button[data-disabled], .button:disabled { cursor: not-allowed; --ink: var(--color-text-secondary); background: transparent; border-color: var(--color-border); }
+.button[data-variant="quiet"][data-disabled], .button[data-variant="quiet"]:disabled { border-color: transparent; }
+.button:focus-visible, .button[data-focus-visible] { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+.label { position: relative; display: inline-block; }
+.label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3px;
+  height: 1px;
+  background: var(--ink);
+  opacity: 0;
+}
+.button[data-variant="quiet"] .label::after { opacity: 1; }
+.button:hover .label::after, .button[data-hovered] .label::after, .button:active .label::after, .button[data-pressed] .label::after { opacity: 1; }
+.button[data-disabled] .label::after, .button:disabled .label::after { opacity: 0; }
+.tick {
+  position: absolute;
+  right: -8px;
+  bottom: 3px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.button:active .tick, .button[data-pressed] .tick { stroke-dashoffset: 0; transition: stroke-dashoffset 160ms var(--motion-ease); }

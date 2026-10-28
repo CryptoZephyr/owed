@@ -17,7 +17,7 @@ export function appOrigin(): string {
 }
 
 export function localPath(path: string | null): string {
-  if (!path || !/^\/(employer|candidate|invite\/[-A-Za-z0-9_]+)(\/|$)/.test(path) || path.startsWith("//") || /[\\\r\n]/.test(path)) return "/candidate";
+  if (!path || !/^\/(employer|candidate|invite\/[-A-Za-z0-9_]+)(\/|\?|$)/.test(path) || path.startsWith("//") || /[\\\r\n]/.test(path)) return "/candidate";
   return path;
 }
 

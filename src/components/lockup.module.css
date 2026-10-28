@@ -1,0 +1,11 @@
+.link { text-decoration: none; display: inline-block; }
+.lockup { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text); }
+.lockup[data-tone="paper"] { color: var(--color-canvas); }
+.word {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1;
+  font-optical-sizing: auto;
+  text-box: trim-both cap alphabetic;
+}

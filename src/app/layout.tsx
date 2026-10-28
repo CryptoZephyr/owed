@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { actor } from "@/lib/owed/auth";
-import { logoutAction } from "./actions";
+import { Header } from "@/components/Header";
+import "./tokens.css";
+import "./fonts.css";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Owed",
@@ -14,11 +16,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <header>
-          <nav aria-label="Main"><Link href="/">Owed</Link> <Link href="/employer">Employer</Link> <Link href="/candidate">Candidate</Link></nav>
-          {user && <form action={logoutAction}><p>Signed in as {user.name}</p><button type="submit">Sign out</button></form>}
-          <p>PayPal sandbox. No real money.</p>
-        </header>
+        <Header user={user} />
         {children}
       </body>
     </html>

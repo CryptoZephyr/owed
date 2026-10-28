@@ -1,0 +1,6 @@
+.landing { gap: var(--space-48); }
+.hero { display: grid; gap: var(--space-16); padding-top: var(--space-24); }
+.headline { font-size: var(--type-landing-size); line-height: var(--type-landing-line); max-width: 15em; letter-spacing: -0.01em; }
+.lede { font-size: var(--type-section-size); line-height: var(--type-section-line); max-width: 36em; color: var(--color-text-secondary); }
+.steps > li { padding: var(--space-12) 0; border-bottom: 1px solid var(--color-border); }
+@media (max-width: 767px) { .headline { font-size: var(--type-landing-mobile-size); line-height: var(--type-landing-mobile-line); } }

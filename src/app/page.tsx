@@ -1,15 +1,35 @@
+import { Notice } from "@/components/Notice";
+import { PromiseForm } from "@/components/PromiseForm";
+import { SilhouetteFooter } from "@/components/Footer";
+import s from "./landing.module.css";
+
+function defaultDeadline(): string {
+  const d = new Date(Date.now() + 7 * 86400000);
+  return `${d.toISOString().slice(0, 10)}T12:00`;
+}
+
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
-  return (
-    <main>
-      <h1>Owed</h1>
-      {error && <p role="alert">{error}</p>}
-      <p>Every interviewed candidate hears back by a set date, or gets paid for their time through PayPal.</p>
-      <p>This is an early build for the PayPal AI Hackathon and runs against the PayPal sandbox only.</p>
-      <p><a href="/auth/paypal?returnTo=/employer">Continue as an employer with PayPal</a></p>
-      <p><a href="/auth/paypal?returnTo=/candidate">Continue as a candidate with PayPal</a></p>
-      <p>Employers fund one hold for each role and share a private invitation with each interviewed candidate.
-        Candidates connect a verified PayPal account to receive the full guarantee if the employer misses their deadline.</p>
+  return <>
+    <main className={s.landing}>
+      {error && <Notice kind="error" title="That didn't go through">{error}</Notice>}
+      <div className={s.hero}>
+        <h1 className={s.headline}>Promise every candidate you interview an answer.</h1>
+        <p className={s.lede}>Owed backs your reply date with money held in PayPal. Reply in time and the hold is released. Miss the date and the candidate is paid.</p>
+      </div>
+      <PromiseForm mode="demo" defaults={{ deadline: defaultDeadline() }}>
+        <section id="how-it-works" aria-labelledby="how" className="section">
+          <h2 id="how">How it works</h2>
+          <ol className={s.steps}>
+            <li>You approve one PayPal hold that covers every place on the role. Nothing is charged yet.</li>
+            <li>Each interviewed candidate claims their guarantee with the PayPal account you invited.</li>
+            <li>You send each candidate a status before the deadline. Owed reminds you 24 hours before it.</li>
+            <li>Anyone who hears nothing by the deadline is paid from the hold. The rest is released when the role closes.</li>
+          </ol>
+        </section>
+      </PromiseForm>
+      <p className="secondary">Invited by an employer? Open the private link they sent you, or <a href="/auth/paypal?returnTo=/candidate">see your guarantees</a>.</p>
     </main>
-  );
+    <SilhouetteFooter />
+  </>;
 }
