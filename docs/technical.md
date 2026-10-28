@@ -33,41 +33,15 @@ What exists today:
 - Plain employer screens for funding roles, sharing invitations, sending status-only closure, and releasing unused holds
 - Plain candidate screens for PayPal connection, guarantee/payout status and review flags
 
-What was verified by hand in the PayPal sandbox on 2026-10-17, using the same credentials and endpoints:
-
-- A role hold lasts 29 days. Renewal is allowed once, between day 4 and day 29
-- Two $25 partial charges from one $100 hold, then releasing the remaining $50
-- A payout to a candidate's verified PayPal account, addressed by PayPal account ID
-- An unclaimed payout to an address with no PayPal account
-- Log in with PayPal returning the candidate's name, email, PayPal account ID and verified status
-
-On 2026-10-19, repeating the same sandbox Payouts request returned HTTP 400 `USER_BUSINESS_ERROR`, with `SENDER_BATCH_ID`, `Batch with given sender_batch_id already exists`, and a link to the original batch. `paypal-plan.md` records the exact result and safe recovery policy.
+The sandbox checks are listed in the [README](../README.md#paypal-integration), and `paypal-plan.md` records the exact results.
 
 The schema and worker are tested against local PostgreSQL 17. On 2026-10-19, the owner approved pausing Setlo to free a Supabase slot. Owed now has its own healthy project, [`kjpbyrvnygiptznftyuk`](https://supabase.com/dashboard/project/kjpbyrvnygiptznftyuk), in `eu-west-1`. The schema and database-only minute deadline job are applied. All seven tables have RLS enabled, the unique operation constraint exists, and neither `anon` nor `authenticated` has access to the private schema. The application-to-session-pooler connection was verified with certificate validation enabled. The HTTP worker runs every minute against the deployed app. The employer and candidate flows, including capture, payout, closure emails and release, were tested end to end on the deployed site with real sandbox accounts.
 
 Not built yet: employer fee recovery, charity fallback for returned payouts, and webhook ingestion. The existing webhook signature-verification helper is not a registered webhook endpoint. Current recovery polls PayPal instead. Employers can send Owed's standard status message, or have the AI draft one. `src/lib/owed/closure-ai.ts` asks OpenRouter (`OPENROUTER_MODEL`, default `nvidia/nemotron-3.5-super-vl:free`) for a status-only draft, then a second call reviews it and flags reasons, feedback, comparisons, promises, personal characteristics or a status mismatch. The employer can edit the draft, and every edited message is reviewed again. Flagged wording needs an explicit acknowledgment. A missing new date on a still-deciding message, or a link or email address, blocks sending. If the model is unavailable, only the standard message can be sent. The AI never moves money. The review is stored in `guarantees.closure_review`. This sandbox charges the guarantee principal and funds PayPal fees from the merchant balance, so candidates receive the full promised amount.
 
-## PayPal integration
+## PayPal and APIMatic
 
-| Step | PayPal feature |
-| --- | --- |
-| Employers and candidates sign in | Log in with PayPal |
-| Employer backs the guarantee | Orders v2 with intent `AUTHORIZE` |
-| Keeping the hold alive | Payments v2 reauthorize |
-| A ghosted candidate's guarantee | Payments v2 partial capture |
-| The candidate gets paid | Payouts to a PayPal account ID |
-| Role closes | Payments v2 void |
-| Staying in sync | Readbacks of orders, authorizations, captures and payout batches (webhooks planned) |
-
-## How APIMatic's Context Plugin shaped the integration
-
-- The plugin's skills (in `.devin/skills/`) required a contract sheet before any SDK code. `paypal-plan.md` is that sheet, built from the SDK map at a pinned commit rather than from memory.
-- The plugin pointed to APIMatic's generated `paypal` SDK, which is installed from GitHub rather than npm. Owed uses it for every order and payment call.
-- The SDK map showed that the SDK has one environment and no environment selector, so Owed sets the host explicitly with `serverOptions.baseUrl` and refuses live PayPal unless it is switched on deliberately.
-- The map also showed what the SDK does not cover (Payouts, identity, webhooks), which is why those calls use PayPal REST directly.
-- The error-handling skill shaped `src/lib/paypal/errors.ts`, which treats a dropped connection on a write as an unknown outcome rather than a failure.
-- Sandbox showed that leaving out the body on authorize and reauthorize makes the SDK drop `Content-Type`, and PayPal answers HTTP 415. Owed sends an empty `{}`, as recorded in `paypal-plan.md`.
-- Re-reading the requested SDK commit exposed `ClientOptions.logging`, which Owed explicitly disables even if `PAYPAL_CLIENT_LOG=debug` is set. The testing skill's `ClientOptions.fetch` seam exercises real wire encoding and caught the generated void decoder rejecting PayPal's empty HTTP 204, now handled by a verified readback.
+The PayPal integration, the sandbox results and how APIMatic's Context Plugin shaped them are in the [README](../README.md#paypal-integration). Every call's exact contract is in [`paypal-plan.md`](../paypal-plan.md).
 
 ## Running it
 

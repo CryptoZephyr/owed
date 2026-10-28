@@ -91,18 +91,37 @@ Candidates get the employer's answer as a letter, and a receipt when they've bee
 | --- | --- |
 | ![An answer email](docs/images/email-letter.png) | ![A paid email](docs/images/email-paid.png) |
 
-## Where PayPal comes in
+## PayPal integration
 
-PayPal handles every step that involves money or identity.
+PayPal handles every step that involves money or identity. Owed runs on the PayPal sandbox only and refuses live PayPal unless it's switched on on purpose.
 
 | What happens | PayPal feature |
 | --- | --- |
-| Employers and candidates sign in | Log in with PayPal |
-| The employer sets the money aside | A PayPal hold that's approved once per role |
-| Keeping the money set aside for longer | Renewing the hold |
-| A candidate wasn't answered in time | Taking that candidate's share from the hold |
-| The candidate gets paid | PayPal Payouts into the candidate's account |
-| The role closes | Releasing the rest of the hold |
+| Employers and candidates sign in | Log in with PayPal, which returns a verified email and PayPal account ID |
+| The employer sets the money aside | Orders v2 with intent `AUTHORIZE`, one hold per role |
+| Keeping the hold alive for longer | Payments v2 reauthorize |
+| A candidate wasn't answered in time | Payments v2 partial capture of that candidate's amount |
+| The candidate gets paid | Payouts to the candidate's PayPal account ID |
+| The role closes | Payments v2 void of what's left |
+| Staying in sync | Reading orders, holds, captures and payouts back from PayPal. Webhooks are planned |
+
+How Owed keeps money safe:
+
+- Every PayPal request that moves money carries an ID built from what it's for, like "charge this candidate's guarantee". If Owed has to retry, PayPal sees the same ID and won't charge or pay twice.
+- If PayPal doesn't answer in time, Owed doesn't guess whether the money moved. It asks PayPal again and goes by what PayPal says.
+- A candidate is only ever paid into the PayPal account that accepted the invitation.
+
+What we checked by hand in the PayPal sandbox:
+
+- A hold lasts 29 days, and it can be renewed once, between day 4 and day 29.
+- Two $25 charges came out of one $100 hold, and releasing it returned the other $50.
+- A payout reached a candidate's verified PayPal account, sent by PayPal account ID.
+- A payout to an email with no PayPal account stays unclaimed, and Owed shows it as unclaimed, never as paid.
+- Log in with PayPal returned the candidate's name, email, PayPal account ID and verified status.
+- Sending the same payout twice was refused the second time with "Batch with given sender_batch_id already exists", so a retry can't pay anyone twice. Owed then reads the original payout back.
+- Taking only part of a hold leaves the rest available to release, while taking the full amount closes the hold.
+
+Every PayPal call Owed makes, with its exact fields and the sandbox results, is written down in [`paypal-plan.md`](paypal-plan.md).
 
 ## What the AI does
 
@@ -131,17 +150,17 @@ Everything below ran on the live demo with PayPal sandbox accounts, and Owed's s
 - A candidate accepted an invitation in time, the date passed with no answer, and Owed paid them $1.00 through PayPal. The candidate's sandbox account received it, and both sides saw the PAID stamp with the PayPal reference.
 - A two-candidate role went through a reminder, a "still deciding" answer with a new date, and a final answer. Every email arrived exactly once, and the hold was released with nothing charged.
 
-In a separate sandbox check, sending the same payment to PayPal twice was refused the second time, so a retry can't pay anyone twice.
-
 ## Built with APIMatic
 
-We built the PayPal connection with APIMatic's Context Plugin for PayPal, and every hold, payment and release goes through APIMatic's generated PayPal SDK.
+We built the PayPal integration with APIMatic's Context Plugin for PayPal. Every hold, charge, renewal and release goes through APIMatic's generated PayPal TypeScript SDK, `paypal`, installed from GitHub and pinned to one commit. Here's where the plugin shaped the work:
 
-- The plugin had us write down every PayPal call before coding it, in [`paypal-plan.md`](paypal-plan.md), using the SDK's own map instead of memory.
-- The map showed which parts of PayPal the SDK covers and which it doesn't, like Payouts and sign-in, so we connected those directly.
-- Its error guide shaped how Owed handles a PayPal request that times out, and its testing guide caught a bug where the SDK misread PayPal's empty reply when a hold was released.
-
-The details are in the [technical notes](docs/technical.md#how-apimatics-context-plugin-shaped-the-integration).
+- Plan before code. The plugin's skills, copied into [`.devin/skills/`](.devin/skills/), required a contract sheet before any SDK code was written. [`paypal-plan.md`](paypal-plan.md) is that sheet. Every method, field and value in it came from the SDK's own map, not from memory.
+- Sandbox by default. The SDK map showed that the SDK has only one environment and no way to pick another, so Owed sets the sandbox address itself and refuses live PayPal unless it's turned on deliberately.
+- Knowing the gaps. The map also showed what the SDK doesn't cover: Payouts, Log in with PayPal and webhooks. Those go to PayPal's REST API directly.
+- Handling failures. The error-handling skill shaped Owed's single place for PayPal errors. A dropped connection while moving money counts as "unknown" and gets checked with PayPal, never treated as a failure.
+- Finding bugs early. The testing skill's approach tests the exact requests the SDK sends. It caught the SDK rejecting PayPal's empty reply when a hold was released, which Owed now handles by reading the hold back.
+- Sandbox findings. Leaving out the body when authorizing or renewing a hold made the SDK drop a header, and PayPal refused the request. Owed sends an empty body, and the fix is recorded in the plan.
+- No leaks. Reading the pinned SDK version turned up a built-in logging option, which Owed switches off so no PayPal details end up in logs.
 
 ## What's next
 
