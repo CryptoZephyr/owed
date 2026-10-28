@@ -39,12 +39,41 @@ test("not-moving-forward uses the neutral rule color", async () => {
   assert.ok(!html.includes("#B3402F"));
 });
 
+test("closure message paragraphs use the email-safe serif stack", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "moving_forward" });
+  const messageIndex = html.indexOf(shared.message);
+  const paragraphStart = html.lastIndexOf("<p", messageIndex);
+  const paragraphEnd = html.indexOf("</p>", messageIndex);
+  const paragraph = html.slice(paragraphStart, paragraphEnd);
+  assert.ok(paragraph.includes('font-family:Georgia, &quot;Times New Roman&quot;, serif'));
+  assert.ok(paragraph.includes("font-size:18px"));
+  assert.ok(paragraph.includes("line-height:28px"));
+});
+
 test("paid email stamps the amount and payment details above its leader row", async () => {
   const html = await renderNotificationEmail({ ...shared, kind: "paid" });
   assert.ok(html.includes("border:2px solid #1F2421"));
   assert.ok(html.includes("border-radius:0px"));
   assert.ok(html.includes("PayPal reference: PAYOUT-123 · Paid at: 28 Oct 2026, 11:00 UTC"));
   assert.ok(html.indexOf("PAYOUT-123") < html.lastIndexOf("USD 25.00"));
+});
+
+test("paid email shows role context above the stamp in secondary label text", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "paid" });
+  const roleText = "Role: Engineer at Example";
+  const roleIndex = html.indexOf(roleText);
+  const roleParagraphStart = html.lastIndexOf("<p", roleIndex);
+  const roleParagraphEnd = html.indexOf("</p>", roleIndex);
+  const roleParagraph = html.slice(roleParagraphStart, roleParagraphEnd);
+  assert.ok(roleIndex >= 0 && roleIndex < html.indexOf("PAID"));
+  assert.ok(roleParagraph.includes("#5C625D"));
+  assert.ok(roleParagraph.includes("font-size:14px"));
+  assert.ok(roleParagraph.includes("line-height:20px"));
+
+  const missingTitle = await renderNotificationEmail({ ...shared, kind: "paid", title: null });
+  const missingEmployer = await renderNotificationEmail({ ...shared, kind: "paid", employerName: null });
+  assert.ok(!missingTitle.includes("Role:"));
+  assert.ok(!missingEmployer.includes("Role:"));
 });
 
 test("plain-text content keeps the existing sandbox body and spacing", () => {

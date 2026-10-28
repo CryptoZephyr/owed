@@ -128,7 +128,7 @@ function ClosureLetter(props: EmailTemplateProps) {
       {props.name ? <Text style={{ ...bodyStyle, marginBottom: `${tokens.space.s3}px` }}>Hello {props.name},</Text> : null}
       {displayRole(props) ? <ContextLine>{displayRole(props)!}</ContextLine> : null}
       {amount(props.amountCents) ? <ContextLine>{`Guarantee: ${amount(props.amountCents)}`}</ContextLine> : null}
-      <Text style={{ ...bodyStyle, margin: 0 }}>{props.message}</Text>
+      <Text style={{ ...bodyStyle, color: tokens.color.text, fontFamily: emailSerif, fontSize: "18px", lineHeight: "28px", margin: 0 }}>{props.message}</Text>
     </>
   );
 }
@@ -148,6 +148,7 @@ function DeadlineReceipt(props: EmailTemplateProps) {
 }
 
 function PaidReceipt(props: EmailTemplateProps) {
+  const role = displayRole(props);
   const paymentDetails = [
     props.paypalReference ? `PayPal reference: ${props.paypalReference}` : "PayPal reference unavailable",
     props.paidAt ? `Paid at: ${formatDeadline(props.paidAt)}` : undefined,
@@ -155,6 +156,11 @@ function PaidReceipt(props: EmailTemplateProps) {
 
   return (
     <>
+      {role ? (
+        <Text style={{ color: tokens.color.textSecondary, fontFamily: emailSans, fontSize: `${tokens.type.label.size}px`, lineHeight: `${tokens.type.label.lineHeight}px`, margin: `0 0 ${tokens.space.s3}px` }}>
+          {role}
+        </Text>
+      ) : null}
       <table
         role="presentation"
         width="100%"
