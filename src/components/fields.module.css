@@ -47,7 +47,8 @@ textarea.input { resize: vertical; }
 .checkbox[data-selected] .box { background: var(--color-action); border-color: var(--color-action); }
 .checkbox[data-selected] .box svg { opacity: 1; }
 .checkbox[data-focus-visible] .box { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-.inlineDate { position: relative; display: inline-flex; vertical-align: baseline; line-height: 36px; }
-.inlineLabel { position: absolute; left: 0; bottom: calc(100% + 2px); white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
-.inlineDate .dateInput { min-height: 0; padding: 2px var(--space-8); font-size: inherit; line-height: 36px; }
+.inlineDate { display: inline-grid; grid-template-rows: var(--type-label-line) 40px; gap: 2px; vertical-align: bottom; line-height: 36px; }
+.inlineLabel { white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
+.inlineDate .dateRow { min-height: 40px; }
+.inlineDate .dateInput { min-height: 0; height: 40px; padding: 2px var(--space-8); font-size: inherit; line-height: 36px; }
 .inlineDate .unit { font-weight: inherit; }

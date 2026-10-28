@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { appOrigin, logout, requireActor } from "@/lib/owed/auth";
 import { DomainError } from "@/lib/owed/domain";
+import { createRoleFailure } from "@/lib/owed/role-form-state";
+import type { CreateRoleState, RoleFormValues } from "@/lib/owed/role-form-state";
 import { draftClosure, reviewClosure } from "@/lib/owed/closure-ai";
 import { acceptInvite, approveRole, closeGuarantee, closeRole, closureContext, closureDraft, correctInvitationEmail, createRole, discardClosureDraft, flagGuarantee, fundRole, inviteCandidate, storeClosureDraft } from "@/lib/owed/roles";
 
@@ -22,16 +24,28 @@ async function action(run: () => Promise<string>): Promise<never> {
   redirect(target);
 }
 
-export async function createRoleAction(form: FormData): Promise<never> {
+export async function createRoleAction(_state: CreateRoleState, form: FormData): Promise<CreateRoleState> {
   const user = await requireActor();
-  return action(async () => {
-    const roleId = await createRole(user, {
-      title: field(form, "title"), employerName: field(form, "employerName"),
-      guaranteeCents: field(form, "guaranteeCents"), capacity: field(form, "capacity"),
-      deadline: `${field(form, "deadline")}:00.000Z`,
+  const values: RoleFormValues = {
+    title: field(form, "title"),
+    employerName: field(form, "employerName"),
+    places: field(form, "capacity"),
+    amount: field(form, "guaranteeUsd"),
+    deadline: field(form, "deadline"),
+  };
+  let roleId: string;
+  try {
+    roleId = await createRole(user, {
+      title: values.title,
+      employerName: values.employerName,
+      guaranteeCents: field(form, "guaranteeCents"),
+      capacity: values.places,
+      deadline: `${values.deadline}:00.000Z`,
     });
-    return `/employer/roles/${roleId}`;
-  });
+  } catch (error) {
+    return createRoleFailure(error, values);
+  }
+  redirect(`/employer/roles/${roleId}`);
 }
 
 export async function fundRoleAction(form: FormData): Promise<never> {
@@ -64,6 +78,12 @@ export async function correctInvitationAction(form: FormData): Promise<never> {
 export async function acceptAction(form: FormData): Promise<never> {
   const user = await requireActor();
   return action(async () => { await acceptInvite(user, z.string().regex(/^[\w-]{43}$/).parse(field(form, "token"))); return "/candidate"; });
+}
+
+export async function logoutToInviteAction(form: FormData): Promise<never> {
+  const token = z.string().regex(/^[\w-]{43}$/).parse(field(form, "token"));
+  await logout();
+  redirect(`/invite/${token}`);
 }
 
 export async function closeGuaranteeAction(form: FormData): Promise<never> {

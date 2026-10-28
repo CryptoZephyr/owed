@@ -56,8 +56,8 @@ const people = queue.flatMap(figure);
 const wall = "M1104 128V14Q1104 8 1110 8H1200V128Z";
 const door = "M1136 128V40H1172V128Z";
 
-function Links({ tone }: { tone: "ink" | "paper" }) {
-  return <nav aria-label="Footer" className={s.links} data-tone={tone}>
+function Links({ tone, label = "Footer" }: { tone: "ink" | "paper"; label?: string }) {
+  return <nav aria-label={label} className={s.links} data-tone={tone}>
     <Link href="/#how-it-works">How it works</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link>
     <span className={s.paypal}>Payments by PayPal</span>
   </nav>;
@@ -79,8 +79,8 @@ export function SilhouetteFooter() {
   </footer>;
 }
 
-export function PlainFooter() {
-  return <footer className={s.plain}>
-    <div className={s.inner}><Lockup /><Links tone="ink" /></div>
-  </footer>;
+export function PlainFooter({ region = false }: { region?: boolean }) {
+  const content = <div className={s.inner}><Lockup /><Links tone="ink" label={region ? "Plain footer links" : "Footer"} /></div>;
+  if (region) return <section className={s.plain} aria-label="Plain footer example">{content}</section>;
+  return <footer className={s.plain}>{content}</footer>;
 }

@@ -215,6 +215,14 @@ function EmailContent(props: EmailTemplateProps) {
   return <Text style={{ ...bodyStyle, margin: 0 }}>{props.message}</Text>;
 }
 
+function emailTitle(props: EmailTemplateProps): string {
+  const role = props.title ? ` for ${props.title}` : "";
+  if (props.kind === "paid") return `Owed: your guarantee was paid${role}`;
+  if (props.kind === "deadline_nudge") return `Owed: reply due${role}`;
+  if (props.kind in statusRules) return `Owed: your status${role}`;
+  return `Owed: ${props.kind.replaceAll("_", " ")}${role}`;
+}
+
 export function EmailTemplate(props: EmailTemplateProps) {
   const preview = props.kind === "deadline_nudge"
     ? "A candidate is waiting for a status."
@@ -224,10 +232,13 @@ export function EmailTemplate(props: EmailTemplateProps) {
 
   return (
     <Html lang="en">
-      <Head />
+      <Head>
+        <title>{emailTitle(props)}</title>
+      </Head>
       <Preview>{preview}</Preview>
       <Body style={bodyStyle}>
-        <Container style={{ backgroundColor: tokens.color.canvas, margin: "0 auto", maxWidth: "560px", width: "100%" }}>
+        <main role="main">
+          <Container style={{ backgroundColor: tokens.color.canvas, margin: "0 auto", maxWidth: "560px", width: "100%" }}>
           <Section style={{ padding: `${tokens.space.s7}px ${tokens.space.s5}px ${tokens.space.s5}px` }}>
             <table role="presentation" width="100%" cellPadding={0} cellSpacing={0}>
               <tbody>
@@ -236,9 +247,9 @@ export function EmailTemplate(props: EmailTemplateProps) {
                   <Img src={`${props.appOrigin}/owed-mark@2x.png`} width={20} height={20} alt="Owed" style={{ display: "block" }} />
                   </td>
                   <td style={{ paddingLeft: "7px", verticalAlign: "middle" }}>
-                  <Text style={{ color: tokens.color.text, fontFamily: emailSerif, fontSize: `${tokens.space.s5}px`, fontWeight: 500, lineHeight: `${tokens.space.s6}px`, margin: 0 }}>
+                  <h1 style={{ color: tokens.color.text, fontFamily: emailSerif, fontSize: `${tokens.space.s5}px`, fontWeight: 500, lineHeight: `${tokens.space.s6}px`, margin: 0 }}>
                     Owed
-                  </Text>
+                  </h1>
                   </td>
                 </tr>
               </tbody>
@@ -264,7 +275,8 @@ export function EmailTemplate(props: EmailTemplateProps) {
               Payments by PayPal
             </Text>
           </Section>
-        </Container>
+          </Container>
+        </main>
       </Body>
     </Html>
   );

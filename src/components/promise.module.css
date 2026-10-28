@@ -1,8 +1,9 @@
 .promise { display: grid; gap: var(--space-24); }
 .employer { max-width: 420px; }
-.sentence { font-size: 24px; line-height: 72px; max-width: 32em; }
-.slot { position: relative; display: inline-flex; align-items: baseline; gap: var(--space-4); vertical-align: baseline; }
-.slotLabel { position: absolute; left: 0; bottom: calc(100% + 2px); white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
+.sentence { font-size: 24px; line-height: 72px; max-width: 32em; text-wrap: pretty; }
+.slot { display: inline-grid; grid-template-rows: var(--type-label-line) 40px; gap: 2px; vertical-align: bottom; }
+.slotLabel { white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
+.slotControl { display: inline-flex; align-items: baseline; gap: var(--space-4); }
 .slotInput {
   width: calc(var(--slot, 6ch) + 2 * var(--space-8));
   min-width: calc(var(--slot, 6ch) + 2 * var(--space-8));
@@ -20,4 +21,5 @@
 .slotInput[data-focused], .slotInput:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .slotInput:user-invalid { border-color: var(--status-red); }
 .currency { font-weight: 500; }
+.nowrap { white-space: nowrap; }
 @media (max-width: 600px) { .sentence { font-size: 20px; line-height: 76px; } }

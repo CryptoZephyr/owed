@@ -32,8 +32,7 @@ export default async function EmployerPage({ searchParams }: { searchParams: Pro
     <main>
       <div className="page-head"><h1>Your roles</h1><p className="secondary">Every role is a promise to reply by a date, backed by a PayPal hold.</p></div>
       {!user.verified && <Notice kind="warning" title="Your PayPal account isn't verified">Use a verified PayPal account to fund a role.</Notice>}
-      <section className="section" aria-labelledby="roles">
-        <h2 id="roles">Roles</h2>
+      <section className="section" aria-label="Roles">
         {!roles.length ? <p className="secondary">No roles yet. Write your first promise below.</p> : <ul className={s.roles}>{roles.map((role) => {
           const st = roleState(role.status);
           return <li key={role.id} className={s.role}>

@@ -1,4 +1,4 @@
-.deadline { display: grid; gap: var(--space-4); }
+.deadline { display: grid; gap: 0; }
 .sentence { font-weight: 500; }
 .left { color: var(--color-text-secondary); }
 .figure { font-size: var(--type-figure-size); line-height: var(--type-figure-line); font-variant-numeric: tabular-nums; color: var(--color-text); font-weight: 500; }
