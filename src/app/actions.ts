@@ -43,6 +43,9 @@ export async function createRoleAction(_state: CreateRoleState, form: FormData):
       deadline: `${values.deadline}:00.000Z`,
     });
   } catch (error) {
+    if (!(error instanceof DomainError) && !(error instanceof z.ZodError)) {
+      console.error(new Error("Owed could not save this change. Try again or contact the operator."));
+    }
     return createRoleFailure(error, values);
   }
   redirect(`/employer/roles/${roleId}`);

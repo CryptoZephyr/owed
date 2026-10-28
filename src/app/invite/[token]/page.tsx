@@ -27,7 +27,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       <div className="page-head">
         <h1>Invitation unavailable</h1>
         <p className="secondary">{unavailableInvitationAccountLine(user.name)}</p>
-        <p className="measure">This invitation can&apos;t be opened with this PayPal account.</p>
+        <p className="measure">This invitation can&apos;t be opened with this PayPal account. It may have been replaced by a newer link, or sent to a different PayPal account. Ask the employer for the latest link.</p>
       </div>
       <div className="actions">
         <form action={logoutToInviteAction}>

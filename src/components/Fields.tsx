@@ -48,7 +48,7 @@ export function DeadlineField({ label, name, description, required, defaultValue
       <Label className={inline ? s.inlineLabel : s.label}>{label}</Label>
       <span className={s.dateRow}>
         <DateInput className={s.dateInput}>{(segment) => <DateSegment segment={segment} className={s.segment} />}</DateInput>
-        <span className={s.unit}>UTC</span>
+        <span className={s.unit}>UTC{inline ? "." : ""}</span>
       </span>
       {description && <Text slot="description" className={s.description}>{description}</Text>}
       <FieldError className={s.error} />

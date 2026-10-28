@@ -72,7 +72,7 @@ export function PromiseForm({ mode, defaults = {}, action, signedIn = false, chi
     {" "}<Slot label="Guarantee each" width="6ch"><span className={s.currency}>$</span><Input className={s.slotInput} name={mode === "role" ? "guaranteeUsd" : undefined}
       value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" pattern="[0-9]{1,4}(\.[0-9]{1,2})?" required /></Slot>
     {" "}<span className={s.nowrap}>if they hear nothing by</span>{" "}
-    <DeadlineField inline label="Reply deadline" name="deadline" required value={deadline} onChange={setDeadline} />.
+    <DeadlineField inline label="Reply deadline" name="deadline" required value={deadline} onChange={setDeadline} />
   </div>;
   const receipt = <Receipt label="Hold">
     <Line label="Places" value={p ?? "Check places"} />

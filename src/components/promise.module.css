@@ -3,10 +3,12 @@
 .sentence { font-size: 24px; line-height: 72px; max-width: 32em; text-wrap: pretty; }
 .slot { display: inline-grid; grid-template-rows: var(--type-label-line) 40px; gap: 2px; vertical-align: bottom; }
 .slotLabel { white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
-.slotControl { display: inline-flex; align-items: baseline; gap: var(--space-4); }
+.slotControl { display: inline-flex; height: 40px; align-items: flex-end; gap: var(--space-4); line-height: 40px; }
 .slotInput {
+  box-sizing: border-box;
   width: calc(var(--slot, 6ch) + 2 * var(--space-8));
   min-width: calc(var(--slot, 6ch) + 2 * var(--space-8));
+  height: 40px;
   field-sizing: content;
   max-width: 100%;
   padding: 2px var(--space-8);
@@ -20,6 +22,6 @@
 }
 .slotInput[data-focused], .slotInput:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .slotInput:user-invalid { border-color: var(--status-red); }
-.currency { font-weight: 500; }
+.currency { align-self: center; font-weight: 500; line-height: 1; }
 .nowrap { white-space: nowrap; }
 @media (max-width: 600px) { .sentence { font-size: 20px; line-height: 76px; } }

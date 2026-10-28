@@ -37,7 +37,7 @@
   opacity: 0;
 }
 .button[data-variant="quiet"] .label::after { opacity: 1; }
-.button:hover .label::after, .button[data-hovered] .label::after, .button:active .label::after, .button[data-pressed] .label::after { opacity: 1; }
+.button:active .label::after, .button[data-pressed] .label::after { opacity: 1; }
 .button[data-disabled] .label::after, .button:disabled .label::after { opacity: 0; }
 .tick {
   position: absolute;
