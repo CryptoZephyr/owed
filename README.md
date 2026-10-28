@@ -13,7 +13,7 @@ Every interviewed candidate hears back by a set date, or gets paid for their tim
 
 ## Status
 
-Early build for the PayPal AI Hackathon. It runs against the PayPal sandbox only.
+Built for the PayPal AI Hackathon and deployed at https://owed-vert-ten.vercel.app. It runs against the PayPal sandbox only. The submission write-up, with the sandbox evidence, is in `SUBMISSION.md`.
 
 What exists today:
 
@@ -35,7 +35,7 @@ What was verified by hand in the PayPal sandbox on 2026-10-17, using the same cr
 
 On 2026-10-19, repeating the same sandbox Payouts request returned HTTP 400 `USER_BUSINESS_ERROR`, with `SENDER_BATCH_ID`, `Batch with given sender_batch_id already exists`, and a link to the original batch. `paypal-plan.md` records the exact result and safe recovery policy.
 
-The schema and worker are tested against local PostgreSQL 17. On 2026-10-19, the owner approved pausing Setlo to free a Supabase slot. Owed now has its own healthy project, [`kjpbyrvnygiptznftyuk`](https://supabase.com/dashboard/project/kjpbyrvnygiptznftyuk), in `eu-west-1`. The schema and database-only minute deadline job are applied. All seven tables have RLS enabled, the unique operation constraint exists, and neither `anon` nor `authenticated` has access to the private schema. The application-to-session-pooler connection was verified with certificate validation enabled. TasteCase is unchanged. HTTP worker activation and browser-based PayPal login/approval still need an app deployment.
+The schema and worker are tested against local PostgreSQL 17. On 2026-10-19, the owner approved pausing Setlo to free a Supabase slot. Owed now has its own healthy project, [`kjpbyrvnygiptznftyuk`](https://supabase.com/dashboard/project/kjpbyrvnygiptznftyuk), in `eu-west-1`. The schema and database-only minute deadline job are applied. All seven tables have RLS enabled, the unique operation constraint exists, and neither `anon` nor `authenticated` has access to the private schema. The application-to-session-pooler connection was verified with certificate validation enabled. The HTTP worker runs every minute against the deployed app. The employer and candidate flows, including capture, payout, closure emails and release, were tested end to end on the deployed site with real sandbox accounts.
 
 Not built yet: employer fee recovery, charity fallback for returned payouts, and webhook ingestion. The existing webhook signature-verification helper is not a registered webhook endpoint. Current recovery polls PayPal instead. Employers can send Owed's standard status message, or have the AI draft one. `src/lib/owed/closure-ai.ts` asks OpenRouter (`OPENROUTER_MODEL`, default `nvidia/nemotron-3.5-super-vl:free`) for a status-only draft, then a second call reviews it and flags reasons, feedback, comparisons, promises, personal characteristics or a status mismatch. The employer can edit the draft, and every edited message is reviewed again. Flagged wording needs an explicit acknowledgment. A missing new date on a still-deciding message, or a link or email address, blocks sending. If the model is unavailable, only the standard message can be sent. The AI never moves money. The review is stored in `guarantees.closure_review`. This sandbox charges the guarantee principal and funds PayPal fees from the merchant balance, so candidates receive the full promised amount.
 
@@ -49,7 +49,7 @@ Not built yet: employer fee recovery, charity fallback for returned payouts, and
 | A ghosted candidate's guarantee | Payments v2 partial capture |
 | The candidate gets paid | Payouts to a PayPal account ID |
 | Role closes | Payments v2 void |
-| Staying in sync | Webhooks with signature verification |
+| Staying in sync | Readbacks of orders, authorizations, captures and payout batches (webhooks planned) |
 
 ## How APIMatic's Context Plugin shaped the integration
 
@@ -58,6 +58,7 @@ Not built yet: employer fee recovery, charity fallback for returned payouts, and
 - The SDK map showed that the SDK has one environment and no environment selector, so Owed sets the host explicitly with `serverOptions.baseUrl` and refuses live PayPal unless it is switched on deliberately.
 - The map also showed what the SDK does not cover (Payouts, identity, webhooks), which is why those calls use PayPal REST directly.
 - The error-handling skill shaped `src/lib/paypal/errors.ts`, which treats a dropped connection on a write as an unknown outcome rather than a failure.
+- Sandbox showed that leaving out the body on authorize and reauthorize makes the SDK drop `Content-Type`, and PayPal answers HTTP 415. Owed sends an empty `{}`, as recorded in `paypal-plan.md`.
 - Re-reading the requested SDK commit exposed `ClientOptions.logging`, which Owed explicitly disables even if `PAYPAL_CLIENT_LOG=debug` is set. The testing skill's `ClientOptions.fetch` seam exercises real wire encoding and caught the generated void decoder rejecting PayPal's empty HTTP 204, now handled by a verified readback.
 
 ## Running it
@@ -98,7 +99,7 @@ DATABASE_URL=postgresql://localhost/owed_test npm run test:db
 npm run build
 ```
 
-Database tests rebuild only the `owed` schema in a localhost database named exactly `owed_test` and refuse other targets. They use a fake money provider, not PayPal credentials. SDK tests stub only `fetch`, keep retries off and use wire-shaped responses. CI runs the same checks with a disposable PostgreSQL 17 service. Hosted validation checks schema/permissions, calls `owed.tick()` and inspects real `pg_cron` runs. The `pg_net` HTTP schedule remains disabled until deployment and Vault configuration are complete.
+Database tests rebuild only the `owed` schema in a localhost database named exactly `owed_test` and refuse other targets. They use a fake money provider, not PayPal credentials. SDK tests stub only `fetch`, keep retries off and use wire-shaped responses. CI runs the same checks with a disposable PostgreSQL 17 service. Hosted validation checks schema/permissions, calls `owed.tick()` and inspects real `pg_cron` runs. The `pg_net` HTTP schedule is enabled on the hosted project.
 
 ## License
 
