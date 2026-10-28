@@ -58,7 +58,7 @@ const door = "M1136 128V40H1172V128Z";
 
 function Links({ tone, label = "Footer" }: { tone: "ink" | "paper"; label?: string }) {
   return <nav aria-label={label} className={s.links} data-tone={tone}>
-    <Link href="/#how-it-works">How it works</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link>
+    <Link href="/docs/start/how-it-works">How it works</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link>
     <span className={s.paypal}>Payments by PayPal</span>
   </nav>;
 }
