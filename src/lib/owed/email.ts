@@ -2,11 +2,16 @@ import "server-only";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { query } from "./db";
+import { renderNotificationEmail } from "./email-template";
 
-export type Mail = { to: string; subject: string; text: string; messageId: string };
+export type Mail = { to: string; subject: string; text: string; html: string; messageId: string };
 export type Mailer = { verify(): Promise<void>; send(mail: Mail): Promise<void> };
 
-type Outgoing = { id: string; kind: string; message: string; email: string | null; email_verified: boolean; name: string | null; title: string | null; employer_name: string | null };
+type Outgoing = {
+  id: string; kind: string; message: string; email: string | null; email_verified: boolean; name: string | null;
+  title: string | null; employer_name: string | null; amount_cents: number | null; deadline: Date | null;
+  payout_batch_id: string | null; created_at: Date;
+};
 
 const subjects: Record<string, string> = {
   moving_forward: "Your application status",
@@ -42,6 +47,24 @@ export function deliveryAddress(intended: string): string {
   return redirect;
 }
 
+export function emailText(input: {
+  to: string;
+  intended: string;
+  name: string | null;
+  title: string | null;
+  employerName: string | null;
+  message: string;
+  appUrl?: string;
+}): string {
+  return [
+    input.to === input.intended ? undefined : `Sandbox delivery. Intended recipient: ${input.intended}`,
+    input.name ? `Hello ${input.name},` : "Hello,",
+    input.title && input.employerName ? `Role: ${input.title} at ${input.employerName}` : undefined,
+    input.message,
+    input.appUrl,
+  ].filter(Boolean).join("\n\n");
+}
+
 function definitelyNotSent(error: unknown): boolean {
   const e = error as { responseCode?: unknown; code?: unknown };
   return typeof e.responseCode === "number" || e.code === "EAUTH";
@@ -72,7 +95,8 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       update owed.notifications n set email_state='sending', email_attempts=email_attempts+1, email_claimed_at=now()
       from next where n.id=next.id returning n.id`);
     if (!claimed[0]) break;
-    const n = (await query<Outgoing>(`select n.id,n.kind,n.message,c.email,c.email_verified,c.name,r.title,r.employer_name
+    const n = (await query<Outgoing>(`select n.id,n.kind,n.message,n.created_at,c.email,c.email_verified,c.name,
+        r.title,r.employer_name,g.amount_cents,g.deadline,g.payout_batch_id
       from owed.notifications n join owed.candidates c on c.id=n.recipient_id
       left join owed.guarantees g on g.id=n.guarantee_id left join owed.roles r on r.id=g.role_id
       where n.id=$1`, [claimed[0].id]))[0]!;
@@ -81,15 +105,30 @@ export async function sendEmails(limit = 5, mailer: Mailer | undefined = gmailMa
       continue;
     }
     const to = deliveryAddress(n.email);
-    const text = [
-      to === n.email ? undefined : `Sandbox delivery. Intended recipient: ${n.email}`,
-      n.name ? `Hello ${n.name},` : "Hello,",
-      n.title && n.employer_name ? `Role: ${n.title} at ${n.employer_name}` : undefined,
-      n.message,
-      process.env.APP_URL,
-    ].filter(Boolean).join("\n\n");
+    const text = emailText({
+      to,
+      intended: n.email,
+      name: n.name,
+      title: n.title,
+      employerName: n.employer_name,
+      message: n.message,
+      appUrl: process.env.APP_URL,
+    });
+    const html = await renderNotificationEmail({
+      kind: n.kind,
+      appOrigin: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
+      message: n.message,
+      name: n.name,
+      title: n.title,
+      employerName: n.employer_name,
+      amountCents: n.amount_cents,
+      deadline: n.deadline,
+      paypalReference: n.payout_batch_id,
+      paidAt: n.created_at,
+      intendedRecipient: to === n.email ? undefined : n.email,
+    });
     try {
-      await mailer.send({ to, subject: subjects[n.kind] ?? "Owed update", text, messageId: `<${n.id}@notifications.owed>` });
+      await mailer.send({ to, subject: subjects[n.kind] ?? "Owed update", text, html, messageId: `<${n.id}@notifications.owed>` });
       await query("update owed.notifications set email_state='sent', email_sent_at=now(), email_error=null where id=$1 and email_state='sending'", [n.id]);
       sent++;
     } catch (error) {

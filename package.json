@@ -7,7 +7,10 @@
   },
   "scripts": {
     "dev": "next dev",
+    "predev": "npm run tokens",
+    "tokens": "tsx scripts/build-tokens.ts",
     "build": "next build",
+    "prebuild": "npm run tokens",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -15,11 +18,18 @@
     "test:db": "node --import ./tests/server-runtime.mjs --import tsx --test tests/database.integration.ts"
   },
   "dependencies": {
+    "@fontsource-variable/newsreader": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@internationalized/date": "3.12.4",
+    "@react-email/components": "1.0.12",
+    "@react-email/render": "2.1.1",
     "next": "16.4.0",
     "nodemailer": "10.1.0",
     "paypal": "git+https://github.com/context-plugins/paypal-typescript-sdk.git#5d0df8a8817e5fdf2e2cd48e68f790ea4730aab2",
     "pg": "8.16.3",
     "react": "19.3.0",
+    "react-aria-components": "1.22.1",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
     "zod": "4.6.5"
