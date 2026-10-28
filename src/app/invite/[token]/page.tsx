@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { actor } from "@/lib/owed/auth";
 import { invitationDetails } from "@/lib/owed/roles";
 import { money } from "@/lib/present";
+import { unavailableInvitationAccountLine } from "@/lib/owed/invitation-copy";
 import { ButtonLink, Button } from "@/components/Button";
 import { Deadline } from "@/components/Deadline";
 import { Line, Receipt } from "@/components/Receipt";
 import { SilhouetteFooter } from "@/components/Footer";
-import { acceptAction } from "../../actions";
+import { acceptAction, logoutToInviteAction } from "../../actions";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -16,12 +17,28 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     <main>
       <div className="page-head"><h1>A private invitation</h1>
         <p className="measure">An employer has promised to reply to you by a set date. Sign in with the PayPal account this invitation was sent to, and you&apos;ll see the promise and the amount behind it.</p></div>
-      <div className="actions"><ButtonLink href={`/auth/paypal?returnTo=${encodeURIComponent(`/invite/${token}`)}`}>Continue with PayPal</ButtonLink></div>
+      <div className="actions"><ButtonLink href={`/auth/paypal?returnTo=${encodeURIComponent(`/invite/${token}`)}`}>Sign in with PayPal to see the promise</ButtonLink></div>
     </main>
     <SilhouetteFooter />
   </>;
   const invite = await invitationDetails(user, token);
-  if (!invite) notFound();
+  if (!invite) return <>
+    <main>
+      <div className="page-head">
+        <h1>Invitation unavailable</h1>
+        <p className="secondary">{unavailableInvitationAccountLine(user.name)}</p>
+        <p className="measure">This invitation can&apos;t be opened with this PayPal account. It may have been replaced by a newer link, or sent to a different PayPal account. Ask the employer for the latest link.</p>
+      </div>
+      <div className="actions">
+        <form action={logoutToInviteAction}>
+          <input type="hidden" name="token" value={token} />
+          <Button variant="secondary">Sign out and use another PayPal account</Button>
+        </form>
+        <ButtonLink href="/">Go to the Owed home page</ButtonLink>
+      </div>
+    </main>
+    <SilhouetteFooter />
+  </>;
   return <>
     <main>
       <div className="page-head"><p className="secondary">{invite.employer_name} · {invite.title}</p><h1>This employer promised to reply.</h1></div>

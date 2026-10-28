@@ -33,6 +33,16 @@ for (const [kind, status] of emails) {
   });
 }
 
+test("email HTML has a role and status-based document title", async () => {
+  for (const [kind] of emails) {
+    const html = await renderNotificationEmail({ ...shared, kind });
+    assert.ok(html.includes("<title>"));
+    if (kind === "paid") assert.ok(html.includes("<title>Owed: your guarantee was paid for Engineer</title>"));
+    else if (kind === "deadline_nudge") assert.ok(html.includes("<title>Owed: reply due for Engineer</title>"));
+    else assert.ok(html.includes("<title>Owed: your status for Engineer</title>"));
+  }
+});
+
 test("email amounts use dollar signs and thousands separators", async () => {
   const html = await renderNotificationEmail({ ...shared, kind: "paid", amountCents: 125000 });
   assert.ok(html.includes("$1,250.00"));

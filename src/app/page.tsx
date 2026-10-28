@@ -1,6 +1,7 @@
 import { Notice } from "@/components/Notice";
 import { PromiseForm } from "@/components/PromiseForm";
 import { SilhouetteFooter } from "@/components/Footer";
+import { actor } from "@/lib/owed/auth";
 import s from "./landing.module.css";
 
 function defaultDeadline(): string {
@@ -10,6 +11,7 @@ function defaultDeadline(): string {
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
+  const user = await actor();
   return <>
     <main className={s.landing}>
       {error && <Notice kind="error" title="That didn't go through">{error}</Notice>}
@@ -17,7 +19,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <h1 className={s.headline}>Promise every candidate you interview an answer.</h1>
         <p className={s.lede}>Owed backs your reply date with money held in PayPal. Reply in time and the hold is released. Miss the date and the candidate is paid.</p>
       </div>
-      <PromiseForm mode="demo" defaults={{ deadline: defaultDeadline() }}>
+      <PromiseForm mode="demo" defaults={{ deadline: defaultDeadline() }} signedIn={!!user}>
         <section id="how-it-works" aria-labelledby="how" className="section">
           <h2 id="how">How it works</h2>
           <ol className={s.steps}>

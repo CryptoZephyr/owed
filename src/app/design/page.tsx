@@ -118,7 +118,7 @@ export default function DesignPage() {
         <p className="secondary">No roles yet. Write your first promise below.</p>
       </Block>
     </main>
-    <PlainFooter />
+    <PlainFooter region />
     <SilhouetteFooter />
   </>;
 }

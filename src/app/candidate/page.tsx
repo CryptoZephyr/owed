@@ -24,7 +24,7 @@ export default async function CandidatePage() {
   return <>
     <main>
       <div className="page-head"><h1>Your guarantees</h1>
-        <p className="secondary measure">Your PayPal account is {user.verified ? "verified and connected" : "not verified"}. Payouts go only to this PayPal account, never to an address typed into a form.</p></div>
+        <p className="secondary measure">Your PayPal account is {user.verified ? "verified and connected" : "not verified"}. Payouts go only to this PayPal account.</p></div>
       {!guarantees.length && <p className="secondary">No guarantees yet. Open the private invitation your employer sent you to add one.</p>}
       <ul className={s.list}>{guarantees.map((g) => {
         const state = guaranteeState(g, now);

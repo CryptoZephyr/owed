@@ -29,7 +29,7 @@ export default async function RolePage({ params, searchParams }: {
   const user = await requireActor();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const role = (await query<Role>("select * from owed.roles where id=$1 and employer_id=$2", [id, user.id]))[0];
+  const role = (await query<Role & { created_at: Date }>("select * from owed.roles where id=$1 and employer_id=$2", [id, user.id]))[0];
   if (!role) notFound();
   const guarantees = await query<Row>(`select g.*, op.updated_at as paid_at from owed.guarantees g
     left join owed.paypal_operations op on op.kind='payout' and op.business_key=g.id::text and op.state='succeeded'
@@ -91,7 +91,9 @@ export default async function RolePage({ params, searchParams }: {
 
       <section className="section" aria-labelledby="candidates">
         <h2 id="candidates">Candidates</h2>
-        {!guarantees.length && <p className="secondary">No candidates yet. Invite each person you interviewed.</p>}
+        {!guarantees.length && <p className="secondary">{["draft", "approval_pending"].includes(role.status)
+          ? "You can invite candidates once PayPal approves the hold."
+          : "No candidates yet. Invite each person you interviewed."}</p>}
         <ul className={s.candidates}>{guarantees.map((g) => {
           const state = guaranteeState(g, now);
           const draft = drafts.get(g.id);

@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Input, Label, TextField } from "react-aria-components";
 import { toCents } from "@/lib/money";
 import { money } from "@/lib/present";
+import { formatDeadline } from "@/lib/format";
+import type { CreateRoleState } from "@/lib/owed/role-form-state";
 import { ButtonLink, Button } from "./Button";
 import { DeadlineField, Field } from "./Fields";
+import { Notice } from "./Notice";
 import { Line, Receipt } from "./Receipt";
 import s from "./promise.module.css";
 
-export type PromiseDefaults = { places?: string; amount?: string; deadline?: string };
+export type PromiseDefaults = { places?: string; amount?: string; deadline?: string; title?: string; employerName?: string };
+type RoleAction = (state: CreateRoleState, form: FormData) => Promise<CreateRoleState>;
 
 function cents(amount: string): number | null {
   try { const c = toCents(amount); return c >= 100 && c <= 100000 ? c : null; } catch { return null; }
@@ -22,48 +26,79 @@ function places(value: string): number | null {
 }
 
 const show = (c: number) => money(c);
+const preserveState: RoleAction = async (state) => state;
 
 function Slot({ label, children, width }: { label: string; children: ReactNode; width?: string }) {
   return <TextField className={s.slot} aria-label={label} style={width ? { ["--slot" as string]: width } : undefined}>
-    <Label className={s.slotLabel}>{label}</Label>{children}
+    <Label className={s.slotLabel}>{label}</Label><span className={s.slotControl}>{children}</span>
   </TextField>;
 }
 
-export function PromiseForm({ mode, defaults = {}, action, children }: {
-  mode: "demo" | "role"; defaults?: PromiseDefaults; action?: (form: FormData) => Promise<never>; children?: ReactNode;
+export function PromiseForm({ mode, defaults = {}, action, signedIn = false, children }: {
+  mode: "demo" | "role"; defaults?: PromiseDefaults; action?: RoleAction; signedIn?: boolean; children?: ReactNode;
 }) {
+  const [formState, roleAction, pending] = useActionState(action ?? preserveState, {
+    errors: [],
+    values: {
+      title: defaults.title ?? "",
+      employerName: defaults.employerName ?? "",
+      places: defaults.places ?? "3",
+      amount: defaults.amount ?? "25.00",
+      deadline: defaults.deadline ?? "",
+    },
+  });
   const [count, setCount] = useState(defaults.places ?? "3");
   const [amount, setAmount] = useState(defaults.amount ?? "25.00");
   const [deadline, setDeadline] = useState(defaults.deadline ?? "");
+  const [title, setTitle] = useState(defaults.title ?? "");
+  const [employerName, setEmployerName] = useState(defaults.employerName ?? "");
+  useEffect(() => {
+    if (!formState.errors.length) return;
+    setCount(formState.values.places);
+    setAmount(formState.values.amount);
+    setDeadline(formState.values.deadline);
+    setTitle(formState.values.title);
+    setEmployerName(formState.values.employerName);
+  }, [formState]);
   const c = cents(amount), p = places(count);
   const total = c !== null && p !== null ? c * p : null;
+  const replyByDate = deadline ? new Date(`${deadline}:00.000Z`) : null;
+  const replyBy = replyByDate && Number.isFinite(replyByDate.getTime()) ? formatDeadline(replyByDate) : "Choose a date";
   const sentence = <div className={s.sentence}>
     Pay each of <Slot label="Places" width="3ch"><Input className={s.slotInput} name={mode === "role" ? "capacity" : undefined} value={count}
       onChange={(e) => setCount(e.target.value)} inputMode="numeric" pattern="[0-9]{1,3}" required /></Slot> candidates
-    {mode === "role" && <> for <Slot label="Role" width="14ch"><Input className={s.slotInput} name="title" required maxLength={160} placeholder="" /></Slot></>}
+    {mode === "role" && <> for <Slot label="Role" width="14ch"><Input className={s.slotInput} name="title" value={title}
+      onChange={(e) => setTitle(e.target.value)} required maxLength={160} placeholder="" /></Slot></>}
     {" "}<Slot label="Guarantee each" width="6ch"><span className={s.currency}>$</span><Input className={s.slotInput} name={mode === "role" ? "guaranteeUsd" : undefined}
       value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" pattern="[0-9]{1,4}(\.[0-9]{1,2})?" required /></Slot>
-    {" "}if they hear nothing by <DeadlineField inline label="Reply deadline" name="deadline" required defaultValue={defaults.deadline} onChange={setDeadline} />.
+    {" "}<span className={s.nowrap}>if they hear nothing by</span>{" "}
+    <DeadlineField inline label="Reply deadline" name="deadline" required value={deadline} onChange={setDeadline} />
   </div>;
   const receipt = <Receipt label="Hold">
     <Line label="Places" value={p ?? "Check places"} />
     <Line label="Guarantee per place" value={c !== null ? show(c) : "$1 to $1,000"} />
+    <Line label="Reply by" value={replyBy} />
     <Line label="Total hold in PayPal" value={total !== null ? show(total) : "Not set"} total />
   </Receipt>;
   if (mode === "demo") {
     const query = new URLSearchParams({ places: count, amount, ...(deadline ? { deadline } : {}) });
-    const href = `/auth/paypal?returnTo=${encodeURIComponent(`/employer?${query}`)}`;
+    const destination = `/employer?${query}`;
+    const href = signedIn ? destination : `/auth/paypal?returnTo=${encodeURIComponent(destination)}`;
     return <div className={s.promise}>
       {sentence}{receipt}{children}
-      <div className="actions"><ButtonLink href={href}>Continue with PayPal</ButtonLink>
-        <span className="secondary small">Sign in as the employer. Your promise carries over to the new role.</span></div>
+      <div className="actions"><ButtonLink href={href}>{signedIn ? "Create this role" : "Sign in with PayPal to create this role"}</ButtonLink>
+        {!signedIn && <span className="secondary small">Sign in as the employer. Your promise carries over to the new role.</span>}</div>
     </div>;
   }
-  return <form action={action} className={s.promise}>
-    <div className={s.employer}><Field label="Employer name, as candidates will see it" name="employerName" required maxLength={120} /></div>
+  return <form action={roleAction} className={s.promise}>
+    {formState.errors.length > 0 && <Notice kind="error" title="Check the new role details">
+      <ul className="stack-8">{formState.errors.map((error) => <li key={error}>{error}</li>)}</ul>
+    </Notice>}
+    <div className={s.employer}><Field label="Employer name, as candidates will see it" name="employerName" required maxLength={120}
+      value={employerName} onChange={setEmployerName} /></div>
     {sentence}{receipt}
     <input type="hidden" name="guaranteeCents" value={c ?? ""} />
     <p className="secondary small measure">Choose a deadline within 21 days. PayPal authorizes the total now and charges nothing unless a candidate hears nothing by the deadline. Candidates always receive the full guarantee. In this sandbox build, Owed pays the PayPal fees.</p>
-    <div className="actions"><Button>Create role</Button></div>
+    <div className="actions"><Button isDisabled={pending}>Create role</Button></div>
   </form>;
 }
