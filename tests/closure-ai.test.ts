@@ -30,6 +30,20 @@ test("an AI draft is reviewed before it is offered", async () => {
   assert.ok(prompts[1]!.includes(out.message));
 });
 
+test("an AI draft normalizes its ISO deadline before being offered", async () => {
+  const message = `We are still deciding. We will send you a status by ${deciding.newDeadline.toISOString()}.`;
+  const prompts: string[] = [];
+  const chat: Chat = async (system, user) => {
+    prompts.push(user);
+    return system.includes("Review the draft") ? "{\"flags\":[]}" : JSON.stringify({ message });
+  };
+  const out = await draftClosure(deciding, chat);
+  assert.equal(out.message, fixedClosureMessage("still_deciding", deciding.newDeadline));
+  assert.equal(out.review.source, "ai");
+  assert.equal(prompts.length, 2);
+  assert.ok(prompts[1]!.includes(message));
+});
+
 test("an unavailable model falls back to the standard message and blocks custom text", async () => {
   const failing: Chat = async () => { throw new Error("HTTP 429"); };
   const draft = await draftClosure(ctx, failing);

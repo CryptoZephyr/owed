@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertDeadline, roleInput } from "../src/lib/owed/domain";
+import { assertDeadline, deadlineText, normalizeDeadlineMentions, roleInput } from "../src/lib/owed/domain";
 import { usd, toCents } from "../src/lib/money";
 import { money } from "../src/lib/present";
 import { appOrigin, localPath } from "../src/lib/owed/auth";
@@ -24,6 +24,27 @@ test("deadline must be future, bounded and inside the role authorization", () =>
   assert.doesNotThrow(() => assertDeadline(new Date("2026-10-20T00:00:00Z"), now));
   for (const date of [now, new Date("invalid"), new Date("2026-11-10T00:00:00Z")]) assert.throws(() => assertDeadline(date, now));
   assert.throws(() => assertDeadline(new Date("2026-10-21T12:00:00Z"), now, new Date("2026-10-22T00:00:00Z")));
+});
+
+test("normalizes ISO deadline timestamps with milliseconds", () => {
+  const deadline = new Date("2026-10-30T12:00:26.399Z");
+  assert.equal(normalizeDeadlineMentions(`Reply by ${deadline.toISOString()}.`, deadline), `Reply by ${deadlineText(deadline)}.`);
+});
+
+test("normalizes ISO deadlines followed by UTC without doubling it", () => {
+  const deadline = new Date("2026-10-30T12:00:26.399Z");
+  assert.equal(normalizeDeadlineMentions(`Reply by ${deadline.toISOString()} UTC.`, deadline), `Reply by ${deadlineText(deadline)}.`);
+});
+
+test("leaves an already-normalized deadline unchanged", () => {
+  const deadline = new Date("2026-10-30T12:00:26.399Z");
+  const message = `Reply by ${deadlineText(deadline)}.`;
+  assert.equal(normalizeDeadlineMentions(message, deadline), message);
+});
+
+test("normalizes an ISO deadline without seconds or Z", () => {
+  const deadline = new Date("2026-10-30T12:00:00.000Z");
+  assert.equal(normalizeDeadlineMentions("Reply by 2026-10-30T12:00.", deadline), `Reply by ${deadlineText(deadline)}.`);
 });
 
 test("role input rejects fractional amounts, excessive capacity and empty fields", () => {
