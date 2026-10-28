@@ -2,10 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { blockingFlags, draftClosure, reviewClosure } from "../src/lib/owed/closure-ai";
 import type { Chat } from "../src/lib/owed/closure-ai";
-import { fixedClosureMessage } from "../src/lib/owed/domain";
+import { deadlineText, fixedClosureMessage, mentionsDeadline } from "../src/lib/owed/domain";
 
 const ctx = { status: "not_moving_forward" as const, title: "Engineer", employerName: "Example" };
 const deciding = { status: "still_deciding" as const, title: "Engineer", employerName: "Example", newDeadline: new Date("2026-10-30T12:00:00Z") };
+
+test("fixed still-deciding messages use the formatted deadline", () => {
+  const message = fixedClosureMessage("still_deciding", deciding.newDeadline);
+  assert.ok(message.includes(deadlineText(deciding.newDeadline)));
+  assert.equal(message, "We are still deciding. We will send you a status by 2026-10-30 12:00 UTC.");
+  assert.equal(mentionsDeadline(message, deciding.newDeadline), true);
+});
 
 test("an AI draft is reviewed before it is offered", async () => {
   const prompts: string[] = [];

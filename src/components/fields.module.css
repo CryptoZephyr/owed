@@ -1,0 +1,53 @@
+.field { display: grid; gap: var(--space-4); }
+.label { font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
+.input, .dateInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px var(--space-12);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+textarea.input { resize: vertical; }
+.input[data-letter] { font-family: var(--font-serif); font-size: 18px; line-height: 28px; padding: var(--space-16) var(--space-24); font-optical-sizing: auto; }
+.input[data-focused], .input:focus-visible, .dateInput[data-focus-within] { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.input[data-invalid], .dateInput[data-invalid] { border-color: var(--status-red); }
+.description { font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); }
+.error { font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--status-red); }
+.dateRow { display: flex; align-items: center; gap: var(--space-8); }
+.dateInput { display: inline-flex; width: auto; font-variant-numeric: tabular-nums; }
+.segment { padding: 0 1px; border-radius: var(--radius-control); }
+.segment[data-placeholder] { color: var(--color-text-secondary); }
+.segment[data-type="literal"] { padding: 0 2px; color: var(--color-text-secondary); }
+.segment[data-focused] { background: var(--color-action); color: var(--color-canvas); outline: none; }
+.unit { font-weight: 500; }
+.radios { display: grid; }
+.radios > .label { margin-bottom: var(--space-4); }
+.radio {
+  display: flex;
+  gap: var(--space-12);
+  align-items: flex-start;
+  min-height: 44px;
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--color-border);
+  cursor: pointer;
+}
+.radio:last-of-type { border-bottom: 1px solid var(--color-border); }
+.radioMark { flex: none; width: 18px; height: 18px; margin-top: 3px; border: 1px solid var(--color-border-control); border-radius: 50%; background: var(--color-surface); }
+.radio[data-selected] .radioMark { border: 5px solid var(--color-action); }
+.radio[data-focus-visible] .radioMark { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.radio[data-hovered] .radioLabel { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.radioLabel { display: block; font-weight: 500; }
+.radioDetail { display: block; color: var(--color-text-secondary); font-size: var(--type-label-size); line-height: var(--type-label-line); }
+.checkbox { display: flex; gap: var(--space-12); align-items: flex-start; min-height: 44px; padding: var(--space-8) 0; cursor: pointer; }
+.box { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 3px; border: 1px solid var(--color-border-control); border-radius: var(--radius-control); background: var(--color-surface); }
+.box svg { fill: none; stroke: var(--color-canvas); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.checkbox[data-selected] .box { background: var(--color-action); border-color: var(--color-action); }
+.checkbox[data-selected] .box svg { opacity: 1; }
+.checkbox[data-focus-visible] .box { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.inlineDate { position: relative; display: inline-flex; vertical-align: baseline; line-height: 36px; }
+.inlineLabel { position: absolute; left: 0; bottom: calc(100% + 2px); white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line); color: var(--color-text-secondary); font-weight: 500; }
+.inlineDate .dateInput { min-height: 0; padding: 2px var(--space-8); font-size: inherit; line-height: 36px; }
+.inlineDate .unit { font-weight: inherit; }

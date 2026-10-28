@@ -37,7 +37,8 @@ export function mentionsDeadline(message: string, date: Date): boolean {
 export function fixedClosureMessage(status: ClosureStatus, deadline?: Date): string {
   if (status === "moving_forward") return "Thank you for your time. We are moving forward with your application.";
   if (status === "not_moving_forward") return "Thank you for your time. We are not moving forward with your application.";
-  return `We are still deciding. We will send you a status by ${deadline?.toISOString()}.`;
+  if (!deadline) throw new Error("A still-deciding message requires a deadline.");
+  return `We are still deciding. We will send you a status by ${deadlineText(deadline)}.`;
 }
 
 export const intendedEmail = z.string().trim().toLowerCase().pipe(z.email().max(254));

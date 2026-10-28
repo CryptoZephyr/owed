@@ -26,6 +26,9 @@ test("role input rejects fractional amounts, excessive capacity and empty fields
 
 test("login return targets cannot leave Owed", () => {
   for (const path of ["//evil.test", "/\\evil.test", "https://evil.test", "/invite\\evil.test", "/candidate\r\nlocation: evil"]) assert.equal(localPath(path), "/candidate");
+  assert.equal(localPath("/employer?places=3&amount=25.00&deadline=2026-11-04T12:00"), "/employer?places=3&amount=25.00&deadline=2026-11-04T12:00");
+  assert.equal(localPath("/candidate?x=1"), "/candidate?x=1");
+  for (const path of ["/employerx", "//evil.com", "/employer\\x", "/employer\n?x=1"]) assert.equal(localPath(path), "/candidate");
   assert.equal(localPath("/invite/abc_123"), "/invite/abc_123");
   const before = process.env.APP_URL;
   try {

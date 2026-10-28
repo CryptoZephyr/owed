@@ -1,0 +1,34 @@
+.status {
+  --tone: var(--status-neutral);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: var(--type-status-size);
+  line-height: var(--type-status-line);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+.status[data-tone="amber"] { --tone: var(--status-amber); }
+.status[data-tone="green"] { --tone: var(--status-green); }
+.status[data-tone="blue"] { --tone: var(--status-blue); }
+.status[data-tone="red"] { --tone: var(--status-red); }
+.word { position: relative; }
+.rule { display: block; width: 24px; height: 2px; background: var(--tone); }
+.status[data-phase="strike"] .word::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: currentColor;
+  transform-origin: left;
+  animation: strike 160ms var(--motion-ease) both;
+}
+.status[data-phase="strike"] .rule { opacity: 0; }
+.status[data-phase="draw"] .rule { transform-origin: left; animation: draw 140ms var(--motion-ease) both; }
+@keyframes strike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
