@@ -12,7 +12,7 @@ import {
 import { render } from "@react-email/render";
 import type { CSSProperties } from "react";
 import { formatDeadline } from "../format";
-import { usd } from "../money";
+import { money } from "../present";
 import { tokens } from "../../design/tokens";
 
 export type EmailTemplateProps = {
@@ -66,7 +66,7 @@ const statusRules: Record<string, string> = {
 };
 
 function amount(cents?: number | null): string {
-  return cents === undefined || cents === null ? "" : `USD ${usd(cents).value}`;
+  return cents === undefined || cents === null ? "" : money(cents);
 }
 
 function displayRole(props: EmailTemplateProps): string | undefined {

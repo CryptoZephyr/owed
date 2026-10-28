@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Input, Label, TextField } from "react-aria-components";
 import { toCents } from "@/lib/money";
+import { money } from "@/lib/present";
 import { ButtonLink, Button } from "./Button";
 import { DeadlineField, Field } from "./Fields";
 import { Line, Receipt } from "./Receipt";
@@ -20,7 +21,7 @@ function places(value: string): number | null {
   return Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
 }
 
-const show = (c: number) => `USD ${Math.trunc(c / 100).toLocaleString("en-US")}.${String(c % 100).padStart(2, "0")}`;
+const show = (c: number) => money(c);
 
 function Slot({ label, children, width }: { label: string; children: ReactNode; width?: string }) {
   return <TextField className={s.slot} aria-label={label} style={width ? { ["--slot" as string]: width } : undefined}>
@@ -40,13 +41,13 @@ export function PromiseForm({ mode, defaults = {}, action, children }: {
     Pay each of <Slot label="Places" width="3ch"><Input className={s.slotInput} name={mode === "role" ? "capacity" : undefined} value={count}
       onChange={(e) => setCount(e.target.value)} inputMode="numeric" pattern="[0-9]{1,3}" required /></Slot> candidates
     {mode === "role" && <> for <Slot label="Role" width="14ch"><Input className={s.slotInput} name="title" required maxLength={160} placeholder="" /></Slot></>}
-    {" "}<Slot label="Guarantee each" width="6ch"><span className={s.currency}>USD</span><Input className={s.slotInput} name={mode === "role" ? "guaranteeUsd" : undefined}
+    {" "}<Slot label="Guarantee each" width="6ch"><span className={s.currency}>$</span><Input className={s.slotInput} name={mode === "role" ? "guaranteeUsd" : undefined}
       value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" pattern="[0-9]{1,4}(\.[0-9]{1,2})?" required /></Slot>
     {" "}if they hear nothing by <DeadlineField inline label="Reply deadline" name="deadline" required defaultValue={defaults.deadline} onChange={setDeadline} />.
   </div>;
   const receipt = <Receipt label="Hold">
     <Line label="Places" value={p ?? "Check places"} />
-    <Line label="Guarantee per place" value={c !== null ? show(c) : "USD 1 to 1,000"} />
+    <Line label="Guarantee per place" value={c !== null ? show(c) : "$1 to $1,000"} />
     <Line label="Total hold in PayPal" value={total !== null ? show(total) : "Not set"} total />
   </Receipt>;
   if (mode === "demo") {
