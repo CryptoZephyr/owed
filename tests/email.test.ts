@@ -58,6 +58,24 @@ test("paid email stamps the amount and payment details above its leader row", as
   assert.ok(html.indexOf("PAYOUT-123") < html.lastIndexOf("USD 25.00"));
 });
 
+test("paid email shows role context above the stamp in secondary label text", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "paid" });
+  const roleText = "Role: Engineer at Example";
+  const roleIndex = html.indexOf(roleText);
+  const roleParagraphStart = html.lastIndexOf("<p", roleIndex);
+  const roleParagraphEnd = html.indexOf("</p>", roleIndex);
+  const roleParagraph = html.slice(roleParagraphStart, roleParagraphEnd);
+  assert.ok(roleIndex >= 0 && roleIndex < html.indexOf("PAID"));
+  assert.ok(roleParagraph.includes("#5C625D"));
+  assert.ok(roleParagraph.includes("font-size:14px"));
+  assert.ok(roleParagraph.includes("line-height:20px"));
+
+  const missingTitle = await renderNotificationEmail({ ...shared, kind: "paid", title: null });
+  const missingEmployer = await renderNotificationEmail({ ...shared, kind: "paid", employerName: null });
+  assert.ok(!missingTitle.includes("Role:"));
+  assert.ok(!missingEmployer.includes("Role:"));
+});
+
 test("plain-text content keeps the existing sandbox body and spacing", () => {
   assert.equal(emailText({
     to: "sandbox@example.test",
