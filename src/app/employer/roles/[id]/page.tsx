@@ -127,8 +127,9 @@ export default async function RolePage({ params, searchParams }: {
               <input type="hidden" name="id" value={g.id} />
               <div className="stack-8">
                 <h4 className={s.panelTitle}>Message to {g.candidate_label}</h4>
-                <p className="secondary small">{statusLabels[draft.status] ?? draft.status}{draft.new_deadline ? `, new date ${formatDeadline(draft.new_deadline)}` : ""}. {draft.review.source === "ai" ? "Drafted and checked by AI. Edit it freely, it's checked again before sending." : draft.review.source === "fixed" ? "Owed's standard message." : "The AI check is unavailable, so only Owed's standard message can be sent."}</p>
+                <p className="secondary small">{statusLabels[draft.status] ?? draft.status}{draft.new_deadline ? `, new date ${formatDeadline(draft.new_deadline)}` : ""}. {draft.review.draftUnavailable ? "You can edit this message freely. It's checked again before sending." : draft.review.source === "ai" ? "Drafted and checked by AI. Edit it freely, it's checked again before sending." : draft.review.source === "fixed" ? "Owed's standard message." : "The AI check is unavailable, so only Owed's standard message can be sent."}</p>
               </div>
+              {draft.review.draftUnavailable && <Notice kind="warning" title="AI drafting didn&apos;t respond">Owed&apos;s standard message is filled in instead. You can send it, edit it or try drafting again later.</Notice>}
               <Field label="Letter" name="message" defaultValue={draft.message} maxLength={1200} rows={6} multiline letter required />
               {draft.review.blocking.length > 0 && <Notice kind="error" title="This message can't be sent yet"><ul className="stack-8">{draft.review.blocking.map((flag, i) => <li key={i}>{flag}</li>)}</ul></Notice>}
               {draft.review.flags.length > 0 && <Notice kind="warning" title="Check this wording">

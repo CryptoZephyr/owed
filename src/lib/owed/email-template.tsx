@@ -128,7 +128,7 @@ function ClosureLetter(props: EmailTemplateProps) {
       {props.name ? <Text style={{ ...bodyStyle, marginBottom: `${tokens.space.s3}px` }}>Hello {props.name},</Text> : null}
       {displayRole(props) ? <ContextLine>{displayRole(props)!}</ContextLine> : null}
       {amount(props.amountCents) ? <ContextLine>{`Guarantee: ${amount(props.amountCents)}`}</ContextLine> : null}
-      <Text style={{ ...bodyStyle, margin: 0 }}>{props.message}</Text>
+      <Text style={{ ...bodyStyle, color: tokens.color.text, fontFamily: emailSerif, fontSize: "18px", lineHeight: "28px", margin: 0 }}>{props.message}</Text>
     </>
   );
 }

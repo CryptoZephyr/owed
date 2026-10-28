@@ -39,6 +39,17 @@ test("not-moving-forward uses the neutral rule color", async () => {
   assert.ok(!html.includes("#B3402F"));
 });
 
+test("closure message paragraphs use the email-safe serif stack", async () => {
+  const html = await renderNotificationEmail({ ...shared, kind: "moving_forward" });
+  const messageIndex = html.indexOf(shared.message);
+  const paragraphStart = html.lastIndexOf("<p", messageIndex);
+  const paragraphEnd = html.indexOf("</p>", messageIndex);
+  const paragraph = html.slice(paragraphStart, paragraphEnd);
+  assert.ok(paragraph.includes('font-family:Georgia, &quot;Times New Roman&quot;, serif'));
+  assert.ok(paragraph.includes("font-size:18px"));
+  assert.ok(paragraph.includes("line-height:28px"));
+});
+
 test("paid email stamps the amount and payment details above its leader row", async () => {
   const html = await renderNotificationEmail({ ...shared, kind: "paid" });
   assert.ok(html.includes("border:2px solid #1F2421"));

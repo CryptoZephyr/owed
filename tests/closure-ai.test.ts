@@ -24,6 +24,7 @@ test("an AI draft is reviewed before it is offered", async () => {
   const out = await draftClosure(ctx, chat);
   assert.equal(out.message, "We are not moving forward with your application for Engineer at Example.");
   assert.equal(out.review.source, "ai");
+  assert.equal(out.review.draftUnavailable, undefined);
   assert.deepEqual(out.review.flags, ["Gives a reason: 'too junior'."]);
   assert.equal(prompts.length, 2);
   assert.ok(prompts[1]!.includes(out.message));
@@ -34,11 +35,28 @@ test("an unavailable model falls back to the standard message and blocks custom 
   const draft = await draftClosure(ctx, failing);
   assert.equal(draft.message, fixedClosureMessage("not_moving_forward"));
   assert.equal(draft.review.source, "fixed");
+  assert.equal(draft.review.draftUnavailable, true);
   const review = await reviewClosure(ctx, "We are not moving forward.", failing);
   assert.equal(review.source, "unavailable");
   assert.equal(review.blocking.length, 1);
   assert.equal((await reviewClosure(ctx, "We are not moving forward.", async () => "no json")).source, "unavailable");
   assert.equal((await reviewClosure(ctx, "We are not moving forward.", async () => "{\"flags\":\"none\"}")).source, "unavailable");
+});
+
+test("AI failures log only an error message or a generic fallback", async () => {
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args); };
+  try {
+    await draftClosure(ctx, async () => { throw new Error("OpenRouter returned HTTP 429."); });
+    await reviewClosure(ctx, "We are not moving forward.", async () => { throw "sensitive"; });
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.deepEqual(warnings, [
+    ["closure AI draft failed:", "OpenRouter returned HTTP 429."],
+    ["closure AI review failed:", "unknown error"],
+  ]);
 });
 
 test("hard rules block a missing new date and links whatever the model says", async () => {

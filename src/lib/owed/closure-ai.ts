@@ -4,10 +4,14 @@ import { deadlineText, fixedClosureMessage, mentionsDeadline } from "./domain";
 import type { ClosureStatus } from "./domain";
 
 export type ClosureContext = { status: ClosureStatus; title: string; employerName: string; newDeadline?: Date };
-export type Review = { source: "ai" | "fixed" | "unavailable"; model?: string; flags: string[]; blocking: string[] };
+export type Review = { source: "ai" | "fixed" | "unavailable"; model?: string; flags: string[]; blocking: string[]; draftUnavailable?: true };
 export type Chat = (system: string, user: string) => Promise<string>;
 
 export const closureModel = (): string => process.env.OPENROUTER_MODEL || "nvidia/nemotron-3.5-super-vl:free";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
 
 const rules = "Owed sends closure messages to job candidates after an interview. A closure message tells the candidate one status and nothing else. "
   + "It never gives reasons or feedback, never compares the candidate with others, never promises future roles or outcomes, and never mentions age, "
@@ -66,7 +70,8 @@ export async function reviewClosure(ctx: ClosureContext, message: string, chat: 
       + "Reply only with JSON {\"flags\": string[]}, one short sentence per problem, quoting the risky wording. Use an empty array if the draft follows every rule.",
     `${describe(ctx)}\nDraft:\n${message}`), z.object({ flags: z.array(z.string().trim().min(1).max(300)).max(10) }));
     return { source: "ai", model: closureModel(), flags: out.flags, blocking };
-  } catch {
+  } catch (error) {
+    console.warn("closure AI review failed:", errorMessage(error));
     return { source: "unavailable", flags: [], blocking: [...blocking, "The AI review is unavailable right now. Send Owed's standard message or try again later."] };
   }
 }
@@ -76,7 +81,8 @@ export async function draftClosure(ctx: ClosureContext, chat: Chat = openRouterC
     const out = parse(await chat(`${rules} Write the message. Reply only with JSON {"message": string}.`, describe(ctx)),
       z.object({ message: z.string().trim().min(1).max(1200) }));
     return { message: out.message, review: await reviewClosure(ctx, out.message, chat) };
-  } catch {
-    return { message: fixedClosureMessage(ctx.status, ctx.newDeadline), review: { source: "fixed", flags: [], blocking: [] } };
+  } catch (error) {
+    console.warn("closure AI draft failed:", errorMessage(error));
+    return { message: fixedClosureMessage(ctx.status, ctx.newDeadline), review: { source: "fixed", flags: [], blocking: [], draftUnavailable: true } };
   }
 }
