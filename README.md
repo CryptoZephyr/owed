@@ -1,104 +1,158 @@
 # Owed
 
-Every interviewed candidate hears back by a set date, or gets paid for their time through PayPal.
+Every interviewed candidate hears back by a set date. If they don't, they get paid.
 
-63% of US job candidates say they were left in the dark after an interview ([Greenhouse 2025 Workforce & Hiring Report](https://www.prnewswire.com/news-releases/only-7-of-candidates-say-the-job-market-favors-them-amidst-challenges-of-ageism-ai-cheating-and-ghosting-302507370.html)). Owed turns the promise of a reply into money that is actually on the line.
+Live demo: [owed-vert-ten.vercel.app](https://owed-vert-ten.vercel.app). It runs on the PayPal sandbox, so all money is test money. Built for the PayPal AI Hackathon.
+
+![Owed's landing page](docs/images/landing.png)
+
+## The problem
+
+Candidates prepare for an interview, take time off work, sit through the rounds, and then hear nothing. 63% of US job candidates say they were left in the dark after an interview ([Greenhouse 2025 Workforce & Hiring Report](https://www.prnewswire.com/news-releases/only-7-of-candidates-say-the-job-market-favors-them-amidst-challenges-of-ageism-ai-cheating-and-ghosting-302507370.html)). Most employers mean to reply, but nothing happens to them when they forget.
+
+## What Owed does
+
+Owed puts money behind the promise to reply. An employer picks an amount for each candidate they interview, for example $25, and a date by which every candidate will hear back. PayPal sets that money aside. If a candidate hears nothing by the date, Owed sends them their $25 through PayPal. If the employer replies on time, nobody pays anything and the money goes back.
+
+```mermaid
+flowchart LR
+  A["Employer opens a role<br/>3 candidates, $25 each,<br/>reply by a set date"] --> B["PayPal sets $75 aside"]
+  B --> C["Employer invites<br/>each candidate"]
+  C --> D{"Did the candidate<br/>hear back in time?"}
+  D -->|Yes| E["Nothing is charged<br/>for that candidate"]
+  D -->|No| F["Owed pays the candidate<br/>$25 through PayPal"]
+  E --> G["Role closes and the rest<br/>of the money is released"]
+  F --> G
+```
 
 ## How it works
 
-1. An employer opens a role, sets a guarantee for each interviewed candidate (for example $25) and a reply deadline, and approves one PayPal hold for the role.
-2. After each interview, AI drafts a respectful status message for the recruiter and flags risky wording. Sending it closes that candidate's guarantee.
-3. If a candidate hears nothing by the deadline, Owed nudges the recruiter once. If the deadline still passes, Owed charges that candidate's guarantee from the hold and pays it to the candidate's verified PayPal account.
-4. When the role closes, Owed releases whatever is left of the hold.
+1. The employer opens a role and writes the promise as one sentence: "Pay each of 3 candidates for Product Designer $25 if they hear nothing by" a date up to three weeks away.
+2. The employer approves one PayPal hold for the whole role, $75 in this example. The money is set aside in their PayPal account. It isn't charged.
+3. The employer invites each interviewed candidate. The candidate signs in with PayPal and accepts. Only the person who was invited can accept.
+4. Before the date, the employer sends each candidate an answer: moving forward, not moving forward, or still deciding with a new date. The employer can ask the AI to write the first draft.
+5. A day before the date, Owed emails the employer about anyone still waiting.
+6. If the date passes without an answer, Owed takes that candidate's $25 from the hold and pays it into their PayPal account. Nobody has to press a button.
+7. When the role closes, PayPal releases whatever is left of the hold.
 
-## Status
+Here's what happens over the life of one role:
 
-Early build for the PayPal AI Hackathon. It runs against the PayPal sandbox only.
+```mermaid
+sequenceDiagram
+  participant E as Employer
+  participant O as Owed
+  participant P as PayPal
+  participant C as Candidate
+  E->>O: Opens a role and sets the reply date
+  O->>P: Asks for one hold for the role
+  E->>P: Approves the hold
+  E->>C: Sends a private invitation
+  C->>O: Signs in with PayPal and accepts
+  O->>E: Reminder a day before the date
+  alt Employer answers in time
+    E->>C: Sends an answer by email and in Owed
+  else Date passes with no answer
+    O->>P: Takes $25 from the hold
+    P->>C: Pays $25 into the candidate's account
+    O->>C: Emails "You've been paid"
+  end
+  O->>P: Releases the rest when the role closes
+```
 
-What exists today:
+## What it looks like
 
-- The PayPal layer in `src/lib/paypal/`: role holds, partial charges, releases and renewals through APIMatic's generated PayPal SDK, plus Payouts, Log in with PayPal and webhook verification over PayPal REST
-- One error-translation boundary for every PayPal failure
-- The contract sheet for every PayPal call in `paypal-plan.md`
-- A private PostgreSQL schema for Supabase, including roles, PayPal identities, guarantees, operation claims, hashed sessions and an in-app notification inbox
-- A recoverable worker with per-role sequencing, leased claims, fencing tokens and fixed deadline rules
-- Plain employer screens for funding roles, sharing invitations, sending status-only closure, and releasing unused holds
-- Plain candidate screens for PayPal connection, guarantee/payout status and review flags
+These screenshots use test data.
 
-What was verified by hand in the PayPal sandbox on 2026-10-17, using the same credentials and endpoints:
+### For employers
 
-- A role hold lasts 29 days. Renewal is allowed once, between day 4 and day 29
-- Two $25 partial charges from one $100 hold, then releasing the remaining $50
-- A payout to a candidate's verified PayPal account, addressed by PayPal account ID
-- An unclaimed payout to an address with no PayPal account
-- Log in with PayPal returning the candidate's name, email, PayPal account ID and verified status
+The role page reads like a receipt. It shows what's held, who has been invited, who has heard back, and who has been paid.
 
-On 2026-10-19, repeating the same sandbox Payouts request returned HTTP 400 `USER_BUSINESS_ERROR`, with `SENDER_BATCH_ID`, `Batch with given sender_batch_id already exists`, and a link to the original batch. `paypal-plan.md` records the exact result and safe recovery policy.
+![An employer's role page](docs/images/role.png)
 
-The schema and worker are tested against local PostgreSQL 17. On 2026-10-19, the owner approved pausing Setlo to free a Supabase slot. Owed now has its own healthy project, [`kjpbyrvnygiptznftyuk`](https://supabase.com/dashboard/project/kjpbyrvnygiptznftyuk), in `eu-west-1`. The schema and database-only minute deadline job are applied. All seven tables have RLS enabled, the unique operation constraint exists, and neither `anon` nor `authenticated` has access to the private schema. The application-to-session-pooler connection was verified with certificate validation enabled. TasteCase is unchanged. HTTP worker activation and browser-based PayPal login/approval still need an app deployment.
+Writing an answer to a candidate. The AI drafts it, checks the wording, and warns the employer before anything risky goes out.
 
-Not built yet: employer fee recovery, charity fallback for returned payouts, and webhook ingestion. The existing webhook signature-verification helper is not a registered webhook endpoint. Current recovery polls PayPal instead. Employers can send Owed's standard status message, or have the AI draft one. `src/lib/owed/closure-ai.ts` asks OpenRouter (`OPENROUTER_MODEL`, default `nvidia/nemotron-3.5-super-vl:free`) for a status-only draft, then a second call reviews it and flags reasons, feedback, comparisons, promises, personal characteristics or a status mismatch. The employer can edit the draft, and every edited message is reviewed again. Flagged wording needs an explicit acknowledgment. A missing new date on a still-deciding message, or a link or email address, blocks sending. If the model is unavailable, only the standard message can be sent. The AI never moves money. The review is stored in `guarantees.closure_review`. This sandbox charges the guarantee principal and funds PayPal fees from the merchant balance, so candidates receive the full promised amount.
+![A candidate's answer being drafted](docs/images/closure-draft.png)
 
-## PayPal integration
+### For candidates
 
-| Step | PayPal feature |
+A candidate sees the employer's promise before they accept it.
+
+![A candidate's invitation](docs/images/invitation.png)
+
+If the date passes without an answer, the candidate sees the payment and its PayPal reference.
+
+![A candidate's paid view](docs/images/candidate-paid.png)
+
+### Emails
+
+Candidates get the employer's answer as a letter, and a receipt when they've been paid.
+
+| The employer's answer | The payment receipt |
+| --- | --- |
+| ![An answer email](docs/images/email-letter.png) | ![A paid email](docs/images/email-paid.png) |
+
+## Where PayPal comes in
+
+PayPal handles every step that involves money or identity.
+
+| What happens | PayPal feature |
 | --- | --- |
 | Employers and candidates sign in | Log in with PayPal |
-| Employer backs the guarantee | Orders v2 with intent `AUTHORIZE` |
-| Keeping the hold alive | Payments v2 reauthorize |
-| A ghosted candidate's guarantee | Payments v2 partial capture |
-| The candidate gets paid | Payouts to a PayPal account ID |
-| Role closes | Payments v2 void |
-| Staying in sync | Webhooks with signature verification |
+| The employer sets the money aside | A PayPal hold that's approved once per role |
+| Keeping the money set aside for longer | Renewing the hold |
+| A candidate wasn't answered in time | Taking that candidate's share from the hold |
+| The candidate gets paid | PayPal Payouts into the candidate's account |
+| The role closes | Releasing the rest of the hold |
 
-## How APIMatic's Context Plugin shaped the integration
+## What the AI does
 
-- The plugin's skills (in `.devin/skills/`) required a contract sheet before any SDK code. `paypal-plan.md` is that sheet, built from the SDK map at a pinned commit rather than from memory.
-- The plugin pointed to APIMatic's generated `paypal` SDK, which is installed from GitHub rather than npm. Owed uses it for every order and payment call.
-- The SDK map showed that the SDK has one environment and no environment selector, so Owed sets the host explicitly with `serverOptions.baseUrl` and refuses live PayPal unless it is switched on deliberately.
-- The map also showed what the SDK does not cover (Payouts, identity, webhooks), which is why those calls use PayPal REST directly.
-- The error-handling skill shaped `src/lib/paypal/errors.ts`, which treats a dropped connection on a write as an unknown outcome rather than a failure.
-- Re-reading the requested SDK commit exposed `ClientOptions.logging`, which Owed explicitly disables even if `PAYPAL_CLIENT_LOG=debug` is set. The testing skill's `ClientOptions.fetch` seam exercises real wire encoding and caught the generated void decoder rejecting PayPal's empty HTTP 204, now handled by a verified readback.
+The AI only works with words. It never decides whether money moves. Holds, payments and releases follow fixed rules.
 
-## Running it
+- It drafts a short, kind answer that states the candidate's status and nothing more. The employer can edit it.
+- It checks the final wording and flags anything that could hurt a candidate or cause trouble: reasons for a rejection, feedback, comparisons with other candidates, promises of future roles, or comments about age or other personal traits. The employer has to tick a box to confirm they've read a warning before sending.
+- A "still deciding" answer must give the new date, and links or email addresses are refused.
+- If the AI isn't available, the employer can still send Owed's standard answer, so a candidate is never left waiting because of it.
 
-Requires Node.js 24. Tests use Node's module hooks and a dedicated PostgreSQL 17 test database.
+In one test, the message "We are not moving forward because we want someone younger with more energy. Maybe a future role will suit you." got three warnings: the reason, the age comment and the promise of a future role.
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
+## Who pays the fees
 
-Fill in `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from the sandbox app. Enable Log in with PayPal, including the email, PayPal account ID and verified account attributes. Register `${APP_URL}/auth/paypal/callback` as its return URL. Both employers and candidates use PayPal login, with opaque HttpOnly SameSite sessions. No OAuth access or refresh tokens are stored. Employers must enter the candidate's PayPal email when creating an invitation. Only a matching PayPal login with both `email_verified` and `verified_account` can view or accept it. Payouts remain bound to the candidate's payer ID. If PayPal omits email verification, the invitation fails closed until the account can return a verified email.
+Today the hold covers only the candidates' amounts, and Owed covers PayPal's fees, so candidates always get the full amount they were promised. In a sandbox test, PayPal charged a $0.52 fee on a $1.00 payment. Next, the employer's hold will include the expected fees too.
 
-If the employer mistyped the PayPal email, they can correct an unclaimed invitation before its deadline. This replaces the private link while preserving the same guarantee, deadline, and funded place. The old link immediately stops working. After acceptance or the deadline, the employer cannot redirect it. An overdue guarantee with an unreachable recipient requires operator review; it cannot be reassigned after the fact.
+## Why an employer would use it
 
-### Database and scheduler
+Owed costs an employer nothing if they do what they already promise. In return, they can show candidates that their promise to reply is backed by real money, which matters most where candidate experience affects who applies. Job boards could badge or rank those roles. These are arguments for the product. We haven't tested real employer demand yet.
 
-1. Use Owed's dedicated Supabase project, not another application's database. Its initial schema, invitation identity migration and database deadline job are already applied. The following migration instructions are only for rebuilding a new environment.
-2. Set the server-only `DATABASE_URL` from the repo-scoped Owed secret to the project's Supavisor session-mode or direct connection string, with `sslmode=verify-full`. The verified session endpoint is `aws-0-eu-west-1.pooler.supabase.com:5432`, with username `owed_app.kjpbyrvnygiptznftyuk`. `owed_app` is a dedicated login role with `BYPASSRLS` and data access to the `owed` schema only, because Supabase refuses to reset the `postgres` password through SQL. Set `NODE_EXTRA_CA_CERTS` to the absolute deployed path of `supabase/certs/prod-ca-2021.crt`, which is `/var/task/supabase/certs/prod-ca-2021.crt` on Vercel. `next.config.ts` bundles the file into every function, downloaded from [Supabase's official certificate URL](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt). Never print the connection string or disable certificate verification. The `owed` schema is private, is not exposed through PostgREST, and has RLS enabled with no public policies. Backend connections must use the schema owner or an explicitly provisioned privileged database role.
-3. For a fresh environment only, apply `supabase/migrations/202610190001_owed.sql`, then `supabase/migrations/202610190002_invitation_identity.sql`, then `supabase/migrations/202610200001_email_outbox.sql`, then `supabase/migrations/202610200002_closure_drafts.sql`, with the Supabase SQL editor or PostgreSQL migration tooling. Both are already applied to the existing Owed project, so do not reapply them there. The second migration keeps earlier unclaimed invitations with no intended email unclaimable until an employer issues a corrected link before the deadline, or an operator reviews them afterward. Apply `supabase/deadlines.sql` to enable the database-only deadline tick independently of app hosting. Re-running the deadline script updates the named job instead of adding duplicates.
-4. Deploy the app with `APP_URL` set to its HTTPS origin. The sandbox deployment is the Vercel project `owed` at `https://owed-vert-ten.vercel.app`, deployed from `main`. Set a random `CRON_SECRET` of at least 32 characters. Keep database and PayPal credentials server-only.
-5. In Supabase Vault, add `owed_app_url` with that origin and `owed_cron_secret` with the same worker secret. Apply `supabase/schedule.sql`. This enables `pg_cron` and `pg_net`, then schedules `owed.tick()` and a protected worker request every minute. The script deliberately fails if the Vault values are missing. Neither secret is placed in cron SQL.
-6. Check `cron.job_run_details`, `net._http_response`, and `owed.paypal_operations` after deployment. The database job only marks deadlines and writes in-app nudges. It cannot capture or pay money without the HTTP worker. A successful cron SQL job alone does not prove the HTTP worker succeeded. Unclaimed payouts stay unclaimed and continue polling, never appearing paid. Rejected/manual-review operations need operator investigation of the original PayPal reference, not a replacement business key.
+## Tested with real PayPal sandbox accounts
 
-The HTTP worker processes one operation per invocation to fit a 60-second request budget. Overlapping invocations are safe. Larger workloads need more frequent worker dispatch or a longer-lived worker, not a larger unbounded batch inside a request. Nudge notifications appear in the employer dashboard 24 hours before the deadline. Every notification is also emailed. Each worker request drains up to five from the `owed.notifications` outbox over Gmail SMTP, using the server-only `GMAIL_USER` and `GMAIL_APP_PASSWORD`. Candidates get their closure status and a paid notice, and employers get the deadline nudge. Unless `EMAIL_DELIVER_TO_RECIPIENTS=true`, every email goes to `EMAIL_SANDBOX_RECIPIENT`, or to `GMAIL_USER` when that is unset, with the intended recipient named in the body, because sandbox PayPal emails are not real inboxes. Direct delivery only goes to an address PayPal reports as verified. If Gmail can't be reached, nothing is claimed and emails wait. An explicit SMTP rejection retries up to three attempts, five and then ten minutes apart. A dropped connection, a timeout or an interrupted send becomes `unknown` and is never resent, so nobody gets the same email twice. Without Gmail credentials, emails wait as `pending`. The deadline update itself runs in PostgreSQL even if HTTP dispatch fails, then durable operations catch up when the worker returns. An invited candidate's overdue guarantee is captured even before they connect; payout waits for their verified account.
+Everything below ran on the live demo with PayPal sandbox accounts, and Owed's scheduler did every step on its own:
 
-Deadlines are UTC, within 21 days, and at least a day before the authorization expires. One extension is allowed. Renewal is queued after four days if candidates are still pending, and never repeated after a successful renewal. A late closure cannot cancel an owed guarantee. Each invitation consumes one funded place, even after closure. There is no reuse of a closed slot for an extra interview.
+- An employer signed in with PayPal, approved a hold, and later closed the role, which released the hold.
+- A candidate accepted an invitation in time, the date passed with no answer, and Owed paid them $1.00 through PayPal. The candidate's sandbox account received it, and both sides saw the PAID stamp with the PayPal reference.
+- A two-candidate role went through a reminder, a "still deciding" answer with a new date, and a final answer. Every email arrived exactly once, and the hold was released with nothing charged.
 
-### Checks
+In a separate sandbox check, sending the same payment to PayPal twice was refused the second time, so a retry can't pay anyone twice.
 
-```bash
-npm run lint
-npm run typecheck
-npm test
-createdb owed_test
-DATABASE_URL=postgresql://localhost/owed_test npm run test:db
-npm run build
-```
+## Built with APIMatic
 
-Database tests rebuild only the `owed` schema in a localhost database named exactly `owed_test` and refuse other targets. They use a fake money provider, not PayPal credentials. SDK tests stub only `fetch`, keep retries off and use wire-shaped responses. CI runs the same checks with a disposable PostgreSQL 17 service. Hosted validation checks schema/permissions, calls `owed.tick()` and inspects real `pg_cron` runs. The `pg_net` HTTP schedule remains disabled until deployment and Vault configuration are complete.
+We built the PayPal connection with APIMatic's Context Plugin for PayPal, and every hold, payment and release goes through APIMatic's generated PayPal SDK.
+
+- The plugin had us write down every PayPal call before coding it, in [`paypal-plan.md`](paypal-plan.md), using the SDK's own map instead of memory.
+- The map showed which parts of PayPal the SDK covers and which it doesn't, like Payouts and sign-in, so we connected those directly.
+- Its error guide shaped how Owed handles a PayPal request that times out, and its testing guide caught a bug where the SDK misread PayPal's empty reply when a hold was released.
+
+The details are in the [technical notes](docs/technical.md#how-apimatics-context-plugin-shaped-the-integration).
+
+## What's next
+
+- Employers cover PayPal's fees as part of the hold.
+- PayPal webhooks, so Owed hears about changes right away.
+- A charity fallback for payments a candidate never collects.
+- A review for live PayPal.
+
+## For developers
+
+Setup, architecture, the database, the scheduler and every PayPal detail are in the [technical notes](docs/technical.md).
 
 ## License
 
