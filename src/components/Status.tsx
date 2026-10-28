@@ -12,13 +12,15 @@ export function Status({ word, tone = "neutral", id }: { word: string; tone?: To
     if (!id) return;
     const key = `owed-status:${id}`;
     const last = window.sessionStorage.getItem(key);
-    window.sessionStorage.setItem(key, word);
-    if (!last || last === word || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!last || last === word || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      window.sessionStorage.setItem(key, word);
+      return;
+    }
     setPrevious(last);
     setPhase("strike");
     const swap = window.setTimeout(() => setPhase("draw"), 260);
-    const done = window.setTimeout(() => { setPhase(null); setPrevious(null); }, 400);
-    return () => { window.clearTimeout(swap); window.clearTimeout(done); };
+    const done = window.setTimeout(() => { setPhase(null); setPrevious(null); window.sessionStorage.setItem(key, word); }, 400);
+    return () => { window.clearTimeout(swap); window.clearTimeout(done); setPhase(null); setPrevious(null); };
   }, [id, word]);
   const showing = phase === "strike" && previous ? previous : word;
   return <span className={s.status} data-tone={tone} data-phase={phase ?? undefined}>
