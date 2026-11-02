@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DocPage } from "@/components/docs/doc-page";
-import { hasMdxPage, readMdxPage } from "@/content/docs/frontmatter";
+import { readMdxPage } from "@/content/docs/frontmatter";
 import { ALL_DOCS, docHref, findDoc } from "@/content/docs/nav";
-import { docContent } from "@/content/docs/registry";
 
 export const dynamicParams = false;
 
@@ -15,10 +14,10 @@ export async function generateMetadata({ params }: { params: Promise<{ group: st
   const { group, slug } = await params;
   const doc = findDoc(group, slug);
   if (!doc) return {};
-  const source = hasMdxPage(group, slug) ? await readMdxPage(group, slug) : undefined;
-  const pageTitle = source?.frontmatter.title ?? doc.title;
+  const source = await readMdxPage(group, slug);
+  const pageTitle = source.frontmatter.title;
   const title = `${pageTitle} · Owed docs`;
-  const description = source?.frontmatter.summary ?? doc.summary;
+  const description = source.frontmatter.summary;
   return {
     title,
     description,
@@ -28,8 +27,6 @@ export async function generateMetadata({ params }: { params: Promise<{ group: st
 
 export default async function Page({ params }: { params: Promise<{ group: string; slug: string }> }) {
   const { group, slug } = await params;
-  const doc = findDoc(group, slug);
-  const isMdx = Boolean(doc) && hasMdxPage(group, slug);
-  if (!doc || (!isMdx && !docContent(group, slug))) notFound();
-  return <DocPage group={group} slug={slug} isMdx={isMdx} />;
+  if (!findDoc(group, slug)) notFound();
+  return <DocPage group={group} slug={slug} />;
 }

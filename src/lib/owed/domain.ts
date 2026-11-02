@@ -6,6 +6,10 @@ export class DomainError extends Error {
   }
 }
 
+export const ROLE_STATUSES = ["draft", "approval_pending", "active", "closing", "closed", "needs_attention"] as const;
+export const GUARANTEE_STATUSES = ["invited", "pending", "overdue", "charging", "awaiting_account", "paying", "paid", "unclaimed", "closed", "needs_attention"] as const;
+export const CLOSURE_STATUSES = ["moving_forward", "not_moving_forward", "still_deciding"] as const;
+
 export const roleInput = z.object({
   title: z.string().trim().min(1).max(160),
   employerName: z.string().trim().min(1).max(120),
@@ -15,7 +19,7 @@ export const roleInput = z.object({
 });
 
 export const closureInput = z.object({
-  status: z.enum(["moving_forward", "not_moving_forward", "still_deciding"]),
+  status: z.enum(CLOSURE_STATUSES),
   newDeadline: z.iso.datetime({ offset: true }).optional(),
   message: z.string().trim().min(1).max(1200).optional(),
 });

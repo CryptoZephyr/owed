@@ -1,0 +1,22 @@
+---
+title: Limitations
+summary: Current boundaries and things Owed does not do yet.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## Sandbox only
+
+Owed has only been verified with PayPal sandbox accounts and test money. Live PayPal and real employer use haven't been tested.
+
+## PayPal webhooks are not wired
+
+Owed doesn't receive PayPal webhook events. It checks PayPal records through its scheduled work.
+
+## AI and email limits
+
+Deployed AI drafting with the current model hasn't been verified. An email send record doesn't prove delivery to the inbox.
+
+## Other boundaries
+
+There is no product-wide pause switch. An unclaimed payout stays unclaimed, with no automatic charity fallback. Real employer demand has not been tested.

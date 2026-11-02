@@ -1,0 +1,26 @@
+---
+title: Recovery
+summary: What to do when PayPal or a payment needs attention.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## What you see
+
+A role or payment may show that PayPal is still being checked or that the item needs review.
+
+## What you do
+
+Wait for the role page to refresh. Keep the role and PayPal reference. If it still needs review, contact the Owed operator.
+
+## What Owed does
+
+Owed checks PayPal before retrying an uncertain money action. It stops for review when it can't safely confirm the result. See [Failure and recovery](/docs/security/failure-and-recovery).
+
+## How you know it worked
+
+The role page shows the latest status after PayPal confirms it. PayPal's own record is the source for whether money moved.
+
+## If nothing changes
+
+Don't create another role, send a separate payment, or assume a timeout means the action failed. Give the operator the role and PayPal reference.

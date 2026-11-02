@@ -1,5 +1,4 @@
 import "server-only";
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -14,10 +13,6 @@ const docsRoot = path.join(process.cwd(), "src", "content", "docs");
 
 export function mdxFilePath(group: string, slug: string): string {
   return path.join(docsRoot, group, `${slug}.mdx`);
-}
-
-export function hasMdxPage(group: string, slug: string): boolean {
-  return existsSync(mdxFilePath(group, slug));
 }
 
 export async function readMdxPage(group: string, slug: string): Promise<{ raw: string; frontmatter: DocFrontmatter }> {

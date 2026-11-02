@@ -1,0 +1,22 @@
+---
+title: What happens at the deadline
+summary: The scheduled steps from missed date to payout.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## Before the date
+
+Owed sends the employer a reminder when a candidate still needs a status and the reply date is within 24 hours.
+
+## When the date passes
+
+If the candidate has no closure, Owed checks the role hold and asks PayPal to charge that candidate's amount. A timely status closes the promise without a charge.
+
+## Pay the candidate
+
+After PayPal confirms the charge, Owed sends the same amount to the PayPal account that accepted the invitation. PayPal may show the payout as pending or unclaimed before it is complete.
+
+## Check the result
+
+Owed reads PayPal's records before marking the payment complete. A lost connection doesn't tell Owed whether PayPal moved money. See [Failure and recovery](/docs/security/failure-and-recovery).

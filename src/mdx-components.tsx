@@ -3,6 +3,7 @@ import { Children, type ComponentProps, type ComponentPropsWithoutRef, type Reac
 import { Notice } from "@/components/Notice";
 import { Line, Receipt } from "@/components/Receipt";
 import s from "@/components/docs/docs.module.css";
+import { StatesTable } from "@/components/docs/states-table";
 import { slugify } from "@/content/docs/frontmatter";
 
 function text(children: ReactNode): string {
@@ -29,6 +30,14 @@ function MdxLink({ className, ...props }: ComponentPropsWithoutRef<"a">) {
   return <a {...props} className={[s.mdxLink, className].filter(Boolean).join(" ")} />;
 }
 
+function MdxCode({ className, ...props }: ComponentPropsWithoutRef<"code">) {
+  return <code {...props} className={[s.mdxCode, className].filter(Boolean).join(" ")} />;
+}
+
+function MdxPre({ className, ...props }: ComponentPropsWithoutRef<"pre">) {
+  return <pre {...props} className={[s.codeBlock, className].filter(Boolean).join(" ")} />;
+}
+
 function Callout(props: ComponentProps<typeof Notice>) {
   return <Notice {...props} />;
 }
@@ -41,8 +50,11 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     ul: MdxUnorderedList,
     ol: MdxOrderedList,
     a: MdxLink,
+    code: MdxCode,
+    pre: MdxPre,
     Receipt,
     Line,
     Callout,
+    StatesTable,
   };
 }
