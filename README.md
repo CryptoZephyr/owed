@@ -136,6 +136,7 @@ What we checked by hand in the PayPal sandbox:
 - Log in with PayPal returned the candidate's name, email, PayPal account ID and verified status.
 - Sending the same payout twice was refused the second time with "Batch with given sender_batch_id already exists", so a retry can't pay anyone twice. Owed then reads the original payout back.
 - Taking only part of a hold leaves the rest available to release, while taking the full amount closes the hold.
+- On the live demo, AI wrote a closure letter and flagged feedback about a candidate's experience as a reason and a comparison. The employer sent a plain answer instead, it arrived as one email, and the $1.00 hold was released.
 
 Every PayPal call Owed makes, with its exact fields and the sandbox results, is written down in [`paypal-plan.md`](paypal-plan.md).
 

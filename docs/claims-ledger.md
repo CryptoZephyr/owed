@@ -45,7 +45,8 @@ Verified against `cf76205` on 2026-11-02. The sandbox results below are the runs
 | Owed checks the returned PayPal amount and destination before marking a payment complete. | concepts/what-happens-at-the-deadline | src/lib/owed/worker.ts | 2026-11-02 |
 | The app sends invitation, reminder, closure, and payout emails when an address is available. | concepts/ai-and-emails | src/lib/owed/email.ts, src/lib/owed/email-template.tsx | 2026-11-02 |
 | A definitely unsent email can be attempted three times with five-minute multiples between attempts; unclear sends are not retried automatically. | concepts/ai-and-emails | src/lib/owed/email.ts, tests/email.test.ts | 2026-11-02 |
-| A previous free-model request reached the OpenRouter daily cap, and deployed drafting with the current model is unverified. | help/troubleshooting | tests/closure-ai.test.ts, Owed brief | 2026-11-02 |
+| AI drafting failure usually means the free OpenRouter model reached its daily cap, and drafting resumes after the reset. | help/troubleshooting | src/lib/owed/closure-ai.ts, Owed brief | 2026-11-02 |
+| On the live demo, AI drafted a closure letter, flagged a rejection reason and an applicant comparison, and the clean letter reached the candidate as one email. | evidence/verified-examples, concepts/ai-and-emails | Deployed retest on production 932662b, role eb365392-4333-4eeb-94b2-1e9587953177 | 2026-11-02 |
 | Owed defaults to PayPal sandbox and refuses live PayPal unless `PAYPAL_ALLOW_LIVE=true`. | reference/supported | src/lib/env.ts | 2026-11-02 |
 | The health route reports whether the app answered and its configured PayPal environment. | reference/deployment | src/app/api/health/route.ts | 2026-11-02 |
 | A health response does not prove sign-in, email, AI drafting, or payment flows work. | reference/deployment | src/app/api/health/route.ts | 2026-11-02 |
