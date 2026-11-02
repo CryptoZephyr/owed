@@ -1,0 +1,26 @@
+---
+title: Verified examples
+summary: Recorded sandbox runs and what each one proves.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## One candidate payment
+
+The README records a sandbox run where a candidate accepted a promise, received no status by the deadline, and was paid $1.00 through PayPal. It proves that this tested path completed with the recorded accounts.
+
+## A two-candidate role
+
+The recorded example used one hold for two candidates. It includes a reminder, a still-deciding answer with a later date, and a final answer. The recorded run says both emails arrived once and the unused hold was released without a charge.
+
+## A repeated payout request
+
+The README records that PayPal refused a second request for the same payout, and Owed read the original payout back. This proves the tested repeat-request safeguard, not every possible recovery case.
+
+## What these records don't prove
+
+These are specific sandbox results. They don't prove live PayPal readiness, universal email delivery, deployed AI drafting with the current model, or real employer demand.
+
+## Read the records
+
+The [README's sandbox results](https://github.com/CryptoZephyr/owed#tested-with-real-paypal-sandbox-accounts) list the checks. The [PayPal plan](https://github.com/CryptoZephyr/owed/blob/main/paypal-plan.md) records the transaction details.

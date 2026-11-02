@@ -1,0 +1,18 @@
+---
+title: Supported
+summary: The PayPal sandbox and US dollars are supported today.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## PayPal sandbox
+
+Owed is set up for PayPal's sandbox. It uses test accounts and test money. Use a sandbox buyer account from the PayPal developer dashboard, not a personal PayPal account.
+
+## Live PayPal is refused
+
+The app refuses live PayPal unless someone deliberately enables the live-mode override. No live-money transaction has been verified for this project.
+
+## For the curious
+
+The live-mode override is `PAYPAL_ALLOW_LIVE=true`. The app's default PayPal environment is the sandbox.

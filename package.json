@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "node --import ./tests/server-runtime.mjs --import tsx --test tests/*.test.ts",
-    "test:db": "node --import ./tests/server-runtime.mjs --import tsx --test tests/database.integration.ts"
+    "test:db": "node --import ./tests/server-runtime.mjs --import tsx --test tests/database.integration.ts",
+    "docs:links": "node scripts/check-doc-links.mjs"
   },
   "dependencies": {
     "@fontsource-variable/newsreader": "5.3.0",

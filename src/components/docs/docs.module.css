@@ -32,6 +32,7 @@
 .mdxOrderedList { list-style: decimal; }
 .mdxList li::marker { color: var(--color-action); }
 .mdxLink { text-underline-offset: 3px; }
+.mdxCode { font-family: var(--font-mono); font-size: 0.95em; }
 .section { display: grid; gap: var(--space-12); scroll-margin-top: var(--space-24); }
 .section h2 { border-bottom: 1px solid var(--color-text); padding-bottom: var(--space-8); }
 .section p, .section li { max-width: 68ch; }

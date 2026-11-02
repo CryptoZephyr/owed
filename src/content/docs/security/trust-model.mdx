@@ -1,0 +1,18 @@
+---
+title: Trust model
+summary: Who controls each part of the flow.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## PayPal confirms identity and money movement
+
+PayPal handles sign-in, the role hold, candidate payments, payouts, and releases. Its own records are the source for what happened to money.
+
+## Owed applies the promise
+
+Owed checks the role, candidate, amount, and deadline before it asks PayPal to act. It keeps the promise and the result PayPal returns.
+
+## What people can check
+
+The employer and candidate pages show the promise and its status. A page or screenshot can show what Owed recorded, but PayPal's transaction record proves what PayPal did.

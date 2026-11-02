@@ -1,0 +1,22 @@
+---
+title: Failure and recovery
+summary: How Owed checks uncertain PayPal outcomes safely.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## A timeout is an unknown result
+
+If Owed loses the connection after asking PayPal to move money, it checks PayPal's record before deciding what happened. A missing reply doesn't mean the payment failed.
+
+## Keep the same payment request
+
+Owed saves one record for each hold, charge, payout, renewal, and release. It keeps the same request identity when it checks or retries, so a repeated request doesn't start a second payment.
+
+## Stop when the result is unclear
+
+Some retries have a limited time window. If Owed can't confirm a safe result, it stops and marks the item for operator review.
+
+## For the curious
+
+Money requests use a stable `PayPal-Request-Id`. Hold creation, authorization, and candidate-charge checks can stop for manual review after five minutes when PayPal has no matching result. An unknown payout can be checked for up to 29 days.

@@ -1,0 +1,22 @@
+---
+title: Permissions
+summary: What employer approval and candidate acceptance allow.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## The employer approves the hold
+
+The hold belongs to one role and its total amount. The employer must approve it in PayPal before Owed enables candidate invitations.
+
+## The candidate accepts the invitation
+
+The private link alone isn't enough. Owed checks the signed-in candidate's verified PayPal email against the intended email, then binds the promise to the account that accepts.
+
+## Each action stays in its lane
+
+The employer sends closure and can close the role when every candidate is settled. Owed's fixed rules decide when to charge, pay, or release money.
+
+## What this protects
+
+Owed checks role ownership and candidate identity before accepting an action. The [trust model](/docs/security/trust-model) explains which records confirm the result.

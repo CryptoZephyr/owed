@@ -8,12 +8,12 @@ const group = (slug: string, title: string, pages: [string, string, string][]): 
 });
 
 export const DOC_GROUPS: DocGroup[] = [
-  group("start", "Start", [
-    ["introduction", "Introduction", "A promise to every interviewed candidate, backed by PayPal."],
+  group("get-started", "Get started", [
+    ["introduction", "Introduction", "Owed backs an employer's promise to reply after an interview with money held in PayPal."],
     ["how-it-works", "How it works", "Follow one role from promise to closure."],
-    ["try-owed", "Try Owed", "See the smallest real path through the sandbox demo."],
+    ["quickstart", "Quickstart", "Try the employer and candidate paths with sandbox accounts."],
   ]),
-  group("using", "Using Owed", [
+  group("guides", "Guides", [
     ["create-a-role", "Create a role", "Set a guarantee, number of places, and reply date."],
     ["fund-the-hold", "Fund the hold", "Approve one PayPal hold for the role."],
     ["invite-candidates", "Invite candidates", "Create private invitations for interviewed candidates."],
@@ -23,32 +23,29 @@ export const DOC_GROUPS: DocGroup[] = [
     ["close-the-role", "Close the role", "Finish the role and release what remains."],
     ["recovery", "Recovery", "What to do when PayPal or a payment needs attention."],
   ]),
-  group("architecture", "Architecture", [
+  group("concepts", "Concepts", [
+    ["overview", "Overview", "See what each part of Owed is responsible for."],
     ["how-the-money-is-held", "How the money is held", "One employer-approved hold backs every place in a role."],
     ["sign-in-and-identity", "Sign-in and identity", "How PayPal sign-in connects an invitation to a person."],
     ["what-happens-at-the-deadline", "What happens at the deadline", "The scheduled steps from missed date to payout."],
-    ["never-charged-twice", "How Owed avoids charging twice", "Stable payment records and careful retries."],
     ["ai-and-emails", "AI and emails", "What AI writes, what it flags, and when Owed sends email."],
   ]),
   group("reference", "Reference", [
-    ["amounts-and-limits", "Amounts and limits", "Current currency, guarantee, place, and date limits."],
-    ["environments", "Environments", "The sandbox is the only supported environment."],
-    ["fees", "Fees", "Who pays PayPal fees today."],
+    ["supported", "Supported", "The PayPal sandbox and US dollars are supported today."],
     ["states", "States", "What each visible role and guarantee state means."],
+    ["fees-and-limits", "Fees and limits", "Current amounts, dates, currency, and PayPal fees."],
     ["deployment", "Deployment", "What the public demo and health check can show."],
     ["limitations", "Limitations", "Current boundaries and things Owed does not do yet."],
   ]),
   group("security", "Security", [
     ["trust-model", "Trust model", "Who controls each part of the flow."],
-    ["authorization-boundaries", "Authorization boundaries", "What each PayPal approval allows."],
-    ["replay-protection", "Replay protection", "How repeated requests avoid repeated payments."],
-    ["recovery-and-controls", "Recovery and controls", "How Owed handles uncertain outcomes and manual review."],
-    ["privacy", "Privacy", "What Owed stores and what is private."],
+    ["permissions", "Permissions", "What employer approval and candidate acceptance allow."],
+    ["data-and-privacy", "Data and privacy", "What Owed stores and what stays private."],
+    ["failure-and-recovery", "Failure and recovery", "How Owed checks uncertain PayPal outcomes safely."],
   ]),
-  group("proof", "Proof", [
+  group("evidence", "Evidence", [
     ["live-deployment", "Live deployment", "What the hosted demo can and cannot prove."],
-    ["verified-sandbox-transactions", "Verified sandbox transactions", "Recorded PayPal sandbox checks and their limits."],
-    ["full-example", "Full example", "One tested role from approval through release."],
+    ["verified-examples", "Verified examples", "Recorded sandbox runs and what each one proves."],
   ]),
   group("help", "Help", [
     ["troubleshooting", "Troubleshooting", "Use real messages to find the next safe step."],

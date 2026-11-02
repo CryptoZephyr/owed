@@ -1,0 +1,38 @@
+---
+title: Overview
+summary: See what each part of Owed is responsible for.
+lastVerified: 2026-11-02
+commit: cf76205
+---
+
+## How the parts fit
+
+```text
+Employer and candidate → Owed website → Owed's records and rules → PayPal
+                                  ↘ Email
+                                  ↘ AI writing help
+```
+
+## Employer and candidate
+
+They make and accept the promise, and the employer sends the status. They don't decide whether PayPal has moved money. A saved role or accepted guarantee shows that Owed recorded the step.
+
+## Owed website
+
+The website lets people create roles, invite candidates, see status, and send closure. It doesn't prove a PayPal payment by itself. A PayPal reference on the role page helps connect Owed's view to PayPal's record.
+
+## Owed's records and rules
+
+Owed saves the promise and checks its deadlines before asking PayPal to act. It doesn't use AI to choose who gets paid. A recorded status and matching PayPal result show that a rule-led step finished.
+
+## PayPal
+
+PayPal confirms account identity, holds money, and processes charges, payouts, and releases. Owed can't replace PayPal's own records as proof of money movement. PayPal's transaction record shows what happened to the money.
+
+## Email
+
+Email carries invitations, reminders, closure messages, and payment notices when an address is available. An email record doesn't prove it reached someone's inbox. The saved send result shows whether Owed handed it to the mail service.
+
+## AI writing help
+
+AI can draft and flag message wording. It doesn't send messages or move money. A draft and its wording flags show that the writing step ran, but deployed drafting with the current model hasn't been verified.

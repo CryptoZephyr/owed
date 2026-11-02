@@ -1,6 +1,6 @@
 # Owed: technical notes
 
-This page is for developers. For what Owed is and how it works, start with the [README](../README.md).
+This page is for developers. For what Owed is and how it works, start with the [README](../README.md) or the [plain-language overview](https://owed-vert-ten.vercel.app/docs/concepts/overview).
 
 ## Architecture
 

@@ -4,6 +4,22 @@ Every interviewed candidate hears back by a set date. If they don't, they get pa
 
 Live demo: [owed-vert-ten.vercel.app](https://owed-vert-ten.vercel.app). It runs on the PayPal sandbox, so all money is test money. Built for the PayPal AI Hackathon.
 
+## The promise, with numbers
+
+An employer promises every candidate they interview an answer by a set date, and backs that promise with money held in PayPal.
+
+| | |
+| --- | --- |
+| The employer promises | $25 per candidate, reply by a set date |
+| PayPal holds | $75 for 3 candidates, nothing charged yet |
+| Candidate hears back in time | Nothing is charged |
+| Date passes with no answer | Owed pays that candidate $25 |
+| Role closes | PayPal releases the rest |
+
+AI helps the employer write the reply. It never decides who gets paid. Fixed rules on the server move the money.
+
+Proven in the PayPal sandbox: on the hosted demo, a candidate's date passed with no answer, and Owed paid them $1.00 through PayPal without anyone pressing a button. [See the evidence](https://owed-vert-ten.vercel.app/docs/evidence/verified-examples) or [read the docs](https://owed-vert-ten.vercel.app/docs/get-started/introduction).
+
 ![Owed's landing page](docs/images/landing.png)
 
 ## The problem

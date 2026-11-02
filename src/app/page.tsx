@@ -22,6 +22,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <PromiseForm mode="demo" defaults={{ deadline: defaultDeadline() }} signedIn={!!user}>
         <section id="how-it-works" aria-labelledby="how" className="section">
           <h2 id="how">How it works</h2>
+          <p><a href="/docs/get-started/how-it-works">Read the full guide</a></p>
           <ol className={s.steps}>
             <li>You approve one PayPal hold that covers every place on the role. Nothing is charged yet.</li>
             <li>Each interviewed candidate claims their guarantee with the PayPal account you invited.</li>
