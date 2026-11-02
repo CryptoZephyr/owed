@@ -44,7 +44,7 @@ export const DOC_GROUPS: DocGroup[] = [
     ["failure-and-recovery", "Failure and recovery", "How Owed checks uncertain PayPal outcomes safely."],
   ]),
   group("evidence", "Evidence", [
-    ["live-deployment", "Live deployment", "What the hosted demo can and cannot prove."],
+    ["live-deployment", "Live deployment", "What the live demo can and cannot prove."],
     ["verified-examples", "Verified examples", "Recorded sandbox runs and what each one proves."],
   ]),
   group("help", "Help", [

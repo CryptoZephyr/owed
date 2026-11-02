@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { candidateStatusLabel, closureStatusLabel, roleStatusLabel } from "../src/components/docs/state-labels";
+import { STAMP_WORDS } from "../src/components/stamp-words";
 import { ALL_DOCS, DOC_GROUPS, docHref } from "../src/content/docs/nav";
 import { CLOSURE_STATUSES, GUARANTEE_STATUSES, ROLE_STATUSES } from "../src/lib/owed/domain";
+import { guaranteeState, roleState } from "../src/lib/present";
 
 const root = path.join(process.cwd(), "src", "content", "docs");
 const mdxPath = (route: string) => path.join(root, `${route}.mdx`);
@@ -63,6 +66,34 @@ test("redirects go directly to existing navigation pages", () => {
     assert.ok(routes.has(destination!), `${source} targets missing ${destination}`);
     assert.ok(!sources.has(destination), `${source} redirects through ${destination}`);
   }
+});
+
+test("state table labels come from the app's presented states", () => {
+  const now = new Date("2026-11-02T12:00:00.000Z");
+  const deadline = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const label = (presentation: ReturnType<typeof guaranteeState>) =>
+    presentation.kind === "status" ? presentation.word : STAMP_WORDS[presentation.stamp];
+
+  for (const status of ROLE_STATUSES) assert.equal(roleStatusLabel(status), roleState(status).word);
+  for (const status of GUARANTEE_STATUSES) {
+    const presentation = guaranteeState({ status, deadline, closure_status: null, extended: false }, now);
+    assert.equal(candidateStatusLabel(status, now), label(presentation));
+  }
+  for (const status of CLOSURE_STATUSES) {
+    const stillDeciding = status === "still_deciding";
+    const presentation = guaranteeState({
+      status: stillDeciding ? "pending" : "closed",
+      deadline,
+      closure_status: status,
+      extended: stillDeciding,
+    }, now);
+    assert.equal(closureStatusLabel(status, now), label(presentation));
+  }
+  const labelSource = [
+    "src/components/docs/states-table.tsx",
+    "src/components/docs/state-labels.ts",
+  ].map((file) => readFileSync(path.join(process.cwd(), file), "utf8")).join("\n");
+  assert.doesNotMatch(labelSource, /\b(?:candidate|guarantee)Labels\b/i);
 });
 
 test("documented status arrays match database constraints", () => {

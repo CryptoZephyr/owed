@@ -1,5 +1,5 @@
 import type { Tone } from "@/components/Status";
-import type { StampKind } from "@/components/Stamp";
+import type { StampKind } from "@/components/stamp-words";
 
 export function money(cents: number): string {
   const sign = cents < 0 ? "-" : "";

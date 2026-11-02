@@ -10,6 +10,7 @@ Verified against `cf76205` on 2026-11-02. The sandbox results below are the runs
 | AI drafts and flags closure wording, while fixed server rules control money movement. | get-started/introduction | src/lib/owed/closure-ai.ts, src/lib/owed/worker.ts | 2026-11-02 |
 | A recorded sandbox run paid a candidate $1.00 after the deadline passed without closure. | get-started/introduction | README.md, “Tested with real PayPal sandbox accounts” | 2026-11-02 |
 | 63% of US job candidates said they were left in the dark after an interview. | get-started/introduction | Greenhouse 2025 Workforce & Hiring Report, linked in the page | 2026-11-02 |
+| Most employers mean to reply, but nothing happens to them when they forget. | get-started/introduction | README.md product rationale | 2026-11-02 |
 | Candidates see the amount and reply date before accepting a private invitation. | get-started/introduction | src/app/invite/[token]/page.tsx | 2026-11-02 |
 | The project has not been verified with live PayPal or tested with real employers. | get-started/introduction | README.md, “Tested with real PayPal sandbox accounts”; Owed brief | 2026-11-02 |
 | A role moves from promise details to an approved hold, candidate invitations, closure, and release. | get-started/how-it-works | src/app/employer/page.tsx, src/app/employer/roles/[id]/page.tsx, src/lib/owed/roles.ts | 2026-11-02 |
@@ -60,7 +61,7 @@ Verified against `cf76205` on 2026-11-02. The sandbox results below are the runs
 | Invitation links are stored as protected hashes and are not exposed to the wrong account. | security/data-and-privacy | src/lib/owed/roles.ts, src/app/invite/[token]/page.tsx | 2026-11-02 |
 | A repeated payment request keeps a stable identity, and Owed reads PayPal's original result before retrying. | security/failure-and-recovery | src/lib/owed/worker.ts, README.md sandbox results | 2026-11-02 |
 | Hold creation, authorization, and candidate-charge replay checks can stop for review after five minutes; unknown payouts can be checked for up to 29 days. | security/failure-and-recovery | src/lib/owed/worker.ts | 2026-11-02 |
-| The hosted demo health check shows only that the app answered and its configured PayPal environment at that time. | evidence/live-deployment | src/app/api/health/route.ts | 2026-11-02 |
+| The live demo health check shows only that the app answered and its configured PayPal environment at that time. | evidence/live-deployment | src/app/api/health/route.ts | 2026-11-02 |
 | The README records a two-candidate sandbox role with one hold, a reminder, a later still-deciding date, two emails, and unused-hold release. | evidence/verified-examples | README.md, “Tested with real PayPal sandbox accounts” | 2026-11-02 |
 | A sandbox payout to an email without a PayPal account remained unclaimed and was not shown as paid. | evidence/verified-examples | README.md sandbox results, paypal-plan.md | 2026-11-02 |
 | PayPal refused a second request for the same payout, and Owed read back the original payout. | evidence/verified-examples | README.md sandbox results | 2026-11-02 |

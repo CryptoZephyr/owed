@@ -18,7 +18,7 @@ An employer promises every candidate they interview an answer by a set date, and
 
 AI helps the employer write the reply. It never decides who gets paid. Fixed rules on the server move the money.
 
-Proven in the PayPal sandbox: on the hosted demo, a candidate's date passed with no answer, and Owed paid them $1.00 through PayPal without anyone pressing a button. [See the evidence](https://owed-vert-ten.vercel.app/docs/evidence/verified-examples) or [read the docs](https://owed-vert-ten.vercel.app/docs/get-started/introduction).
+Proven in the PayPal sandbox: on the live demo, a candidate's date passed with no answer, and Owed paid them $1.00 through PayPal without anyone pressing a button. [See the evidence](https://owed-vert-ten.vercel.app/docs/evidence/verified-examples) or [read the docs](https://owed-vert-ten.vercel.app/docs/get-started/introduction).
 
 ![Owed's landing page](docs/images/landing.png)
 
