@@ -16,16 +16,6 @@ const section = (id: string, title: string, paragraphs: string[], bullets?: stri
 const link = (label: string, href: string): DocLink => ({ label, href });
 
 export const DOC_CONTENT: Record<string, DocContent> = {
-  "start/introduction": page("Owed backs an employer's promise to reply with a PayPal hold. If a candidate hears nothing by the date, Owed pays their guarantee through PayPal.", [
-    section("for-employers-and-candidates", "For employers and candidates", ["Employers set a reply date and an amount for each interviewed candidate. They approve one PayPal hold for the role. Candidates see the promise before they accept a private invitation."], ["A timely answer means no charge for that candidate.", "If no answer arrives by the date, Owed uses that candidate's amount from the hold and pays it to their PayPal account."]),
-    section("the-promise", "The promise", ["Every interviewed candidate hears back by a set date, or gets paid for their time through PayPal. That is Owed's central rule."]),
-    section("where-to-go-next", "Where to go next", ["Employers can follow the role journey. Candidates can see how to accept an invitation and what the promise means."], undefined, [link("How it works", "/docs/start/how-it-works"), link("Create a role", "/docs/using/create-a-role"), link("Claim a guarantee", "/docs/using/claim-a-guarantee")]),
-  ]),
-  "start/why-owed": page("Candidates spend time interviewing and often hear nothing afterward. Owed gives employers a clear date and backs that promise with money.", [
-    section("the-silence", "The silence after an interview", ["A candidate may prepare, travel, take time off, and complete several rounds, then receive no answer. The employer may mean to reply, but the task can slip."]),
-    section("a-promise-with-a-date", "A promise with a date", ["Owed puts a clear reply date and a set amount in front of both sides. The employer has a reason to close the loop. A candidate knows what happens if the date passes without an answer."]),
-    section("what-owed-can-show", "What Owed can show", ["Owed demonstrates a working PayPal sandbox flow. It has not measured demand from real employers or candidates."]),
-  ]),
   "start/how-it-works": page("A role moves from a written promise to an approved hold, private invitations, closure, and a final release.", [
     section("role-lifecycle", "One role, one promise", ["The steps below show the normal path from setting the promise to closing the role."], undefined, undefined, [
       "The employer sets the amount per candidate, the number of places, and the reply date.",
