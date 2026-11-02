@@ -1,9 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { deadlineText, fixedClosureMessage, mentionsDeadline } from "./domain";
+import { deadlineText, fixedClosureMessage, mentionsDeadline, normalizeDeadlineMentions } from "./domain";
 import type { ClosureStatus } from "./domain";
 
-export type ClosureContext = { status: ClosureStatus; title: string; employerName: string; newDeadline?: Date };
+export type ClosureContext = { status: ClosureStatus; title: string; employerName: string; deadline?: Date; newDeadline?: Date };
 export type Review = { source: "ai" | "fixed" | "unavailable"; model?: string; flags: string[]; blocking: string[]; draftUnavailable?: true };
 export type Chat = (system: string, user: string) => Promise<string>;
 
@@ -80,7 +80,10 @@ export async function draftClosure(ctx: ClosureContext, chat: Chat = openRouterC
   try {
     const out = parse(await chat(`${rules} Write the message. Reply only with JSON {"message": string}.`, describe(ctx)),
       z.object({ message: z.string().trim().min(1).max(1200) }));
-    return { message: out.message, review: await reviewClosure(ctx, out.message, chat) };
+    const review = await reviewClosure(ctx, out.message, chat);
+    const deadline = ctx.newDeadline ?? ctx.deadline;
+    const message = deadline ? normalizeDeadlineMentions(out.message, deadline) : out.message;
+    return { message, review };
   } catch (error) {
     console.warn("closure AI draft failed:", errorMessage(error));
     return { message: fixedClosureMessage(ctx.status, ctx.newDeadline), review: { source: "fixed", flags: [], blocking: [], draftUnavailable: true } };

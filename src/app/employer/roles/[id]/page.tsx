@@ -168,7 +168,7 @@ export default async function RolePage({ params, searchParams }: {
       <section className="section" aria-labelledby="operations">
         <h2 id="operations">PayPal activity</h2>
         {!operations.length ? <p className="secondary">Nothing sent to PayPal yet.</p> : <ul className="rows">{operations.map((op) => <li key={op.id} className={s.op}>
-          <span>{operationKind(op.kind)}</span><span className={s.opState}>{operationState(op.state)}</span><span className="mono secondary">{formatTime(op.updated_at)}</span>
+          <span>{operationKind(op.kind)}</span><span className={s.opState}>{operationState(op.state)}</span><span className="mono secondary">{formatDeadline(op.updated_at)}</span>
         </li>)}</ul>}
         <p className="secondary small">PayPal updates run every minute. <a href={`/employer/roles/${id}`}>Refresh</a>.</p>
       </section>

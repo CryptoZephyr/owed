@@ -34,6 +34,16 @@ export function mentionsDeadline(message: string, date: Date): boolean {
   return [...message.matchAll(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/g)].every((match) => match[0].replace("T", " ") === expected);
 }
 
+export function normalizeDeadlineMentions(message: string, deadline: Date): string {
+  const isoDateTime = /\b(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z?)(?:[ \t]+UTC)?\b/g;
+  return message.replace(isoDateTime, (match, timestamp: string) => {
+    const value = timestamp.endsWith("Z") ? timestamp : `${timestamp}Z`;
+    const parsed = new Date(value);
+    const precision = timestamp.endsWith("Z") ? timestamp.slice(0, -1) : timestamp;
+    return parsed.getTime() === deadline.getTime() && parsed.toISOString().startsWith(precision) ? deadlineText(deadline) : match;
+  });
+}
+
 export function fixedClosureMessage(status: ClosureStatus, deadline?: Date): string {
   if (status === "moving_forward") return "Thank you for your time. We are moving forward with your application.";
   if (status === "not_moving_forward") return "Thank you for your time. We are not moving forward with your application.";

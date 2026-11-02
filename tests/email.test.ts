@@ -48,6 +48,35 @@ test("email amounts use dollar signs and thousands separators", async () => {
   assert.ok(html.includes("$1,250.00"));
 });
 
+test("deadline nudge names the candidate and links to the role in HTML and text", async () => {
+  const roleUrl = "https://owed.example/employer/roles/role-123";
+  const html = await renderNotificationEmail({
+    ...shared,
+    kind: "deadline_nudge",
+    candidateLabel: "Ben Cole",
+    roleUrl,
+  });
+  assert.ok(html.includes("Candidate"));
+  assert.ok(html.includes("Ben Cole"));
+  assert.ok(html.includes(`href="${roleUrl}"`));
+  assert.ok(html.includes(">Open the role</a>"));
+
+  const text = emailText({
+    to: "sandbox@example.test",
+    intended: "candidate@example.test",
+    name: "Morgan",
+    title: "Engineer",
+    employerName: "Example",
+    message: "A candidate is waiting for a status.",
+    candidateLabel: "Ben Cole",
+    roleUrl,
+    appUrl: "https://owed.example",
+  });
+  assert.ok(text.includes("Candidate: Ben Cole"));
+  assert.ok(text.includes(`Open the role: ${roleUrl}`));
+  assert.ok(!text.endsWith("https://owed.example"));
+});
+
 test("not-moving-forward uses the neutral rule color", async () => {
   const html = await renderNotificationEmail({ ...shared, kind: "not_moving_forward" });
   assert.ok(html.includes("#5C625D"));

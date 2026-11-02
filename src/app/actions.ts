@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { appOrigin, logout, requireActor } from "@/lib/owed/auth";
-import { DomainError } from "@/lib/owed/domain";
+import { DomainError, normalizeDeadlineMentions } from "@/lib/owed/domain";
 import { createRoleFailure } from "@/lib/owed/role-form-state";
 import type { CreateRoleState, RoleFormValues } from "@/lib/owed/role-form-state";
 import { draftClosure, reviewClosure } from "@/lib/owed/closure-ai";
@@ -119,10 +119,13 @@ export async function sendClosureDraftAction(form: FormData): Promise<never> {
     const guaranteeId = id(form);
     const draft = await closureDraft(user, guaranteeId);
     if (!draft) throw new DomainError("Draft not found. Draft the message again.", 404);
-    const message = z.string().trim().min(1).max(1200).parse(field(form, "message"));
+    const submittedMessage = z.string().trim().min(1).max(1200).parse(field(form, "message"));
     const ctx = await closureContext(user, guaranteeId, { status: draft.status, newDeadline: draft.new_deadline?.toISOString() });
-    const checked = await reviewClosure(ctx, message);
-    const unchanged = message === draft.message;
+    const deadline = ctx.newDeadline ?? ctx.deadline;
+    const checked = await reviewClosure(ctx, submittedMessage);
+    const message = deadline ? normalizeDeadlineMentions(submittedMessage, deadline) : submittedMessage;
+    const savedMessage = deadline ? normalizeDeadlineMentions(draft.message, deadline) : draft.message;
+    const unchanged = message === savedMessage;
     const review = unchanged && draft.review.flags.length ? { ...checked, flags: [...new Set([...draft.review.flags, ...checked.flags])] } : checked;
     const acknowledged = field(form, "acknowledged") === "yes" && unchanged;
     if (review.blocking.length || (review.flags.length && !acknowledged)) {

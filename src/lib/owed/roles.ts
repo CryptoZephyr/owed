@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { query, transaction } from "./db";
-import { assertDeadline, closureInput, DomainError, fixedClosureMessage, intendedEmail, mentionsDeadline, roleInput } from "./domain";
+import { assertDeadline, closureInput, DomainError, fixedClosureMessage, intendedEmail, mentionsDeadline, normalizeDeadlineMentions, roleInput } from "./domain";
 import type { Actor, ClosureStatus, Guarantee, Role } from "./domain";
 import type { ClosureContext, Review } from "./closure-ai";
 
@@ -159,10 +159,11 @@ export async function closeGuarantee(actor: Actor, id: string, raw: unknown, rev
       assertDeadline(deadline, now, role.expires_at);
       if (deadline <= g.deadline) throw new DomainError("The new deadline must be after the existing one.", 400);
     }
-    const message = input.message ?? fixedClosureMessage(input.status, deadline);
-    if (input.status === "still_deciding" && !mentionsDeadline(message, deadline)) {
+    const submittedMessage = input.message ?? fixedClosureMessage(input.status, deadline);
+    if (input.status === "still_deciding" && !mentionsDeadline(submittedMessage, deadline)) {
       throw new DomainError("A still deciding message must state the new deadline date and time.", 400);
     }
+    const message = normalizeDeadlineMentions(submittedMessage, deadline);
     await db.query(`update owed.guarantees set closure_status=$2, closure_message=$3, deadline=$4,
       extended=extended or $5, status=case when $5 then status else 'closed' end,
       closed_at=case when $5 then null else now() end, nudged_at=null, closure_review=$6 where id=$1`,
@@ -191,15 +192,17 @@ export async function closureContext(actor: Actor, id: string, raw: unknown): Pr
     assertDeadline(newDeadline, new Date(), g.expires_at);
     if (newDeadline <= g.deadline) throw new DomainError("The new deadline must be after the existing one.", 400);
   }
-  return { roleId: g.role_id, status: input.status, title: g.title, employerName: g.employer_name, newDeadline };
+  return { roleId: g.role_id, status: input.status, title: g.title, employerName: g.employer_name, deadline: newDeadline ?? g.deadline, newDeadline };
 }
 
 export async function storeClosureDraft(actor: Actor, id: string, ctx: ClosureContext, message: string, review: Review): Promise<void> {
+  const deadline = ctx.newDeadline ?? ctx.deadline;
+  const normalizedMessage = deadline ? normalizeDeadlineMentions(message, deadline) : message;
   const saved = await query(`insert into owed.closure_drafts (guarantee_id,status,new_deadline,message,review)
     select g.id,$3,$4,$5,$6 from owed.guarantees g join owed.roles r on r.id=g.role_id where g.id=$1 and r.employer_id=$2
     on conflict (guarantee_id) do update set status=excluded.status, new_deadline=excluded.new_deadline,
       message=excluded.message, review=excluded.review, updated_at=now()
-    returning guarantee_id`, [id, actor.id, ctx.status, ctx.newDeadline ?? null, message, JSON.stringify(review)]);
+    returning guarantee_id`, [id, actor.id, ctx.status, ctx.newDeadline ?? null, normalizedMessage, JSON.stringify(review)]);
   if (!saved[0]) throw new DomainError("Guarantee not found.", 404);
 }
 
