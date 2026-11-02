@@ -10,7 +10,6 @@ const group = (slug: string, title: string, pages: [string, string, string][]): 
 export const DOC_GROUPS: DocGroup[] = [
   group("start", "Start", [
     ["introduction", "Introduction", "A promise to every interviewed candidate, backed by PayPal."],
-    ["why-owed", "Why Owed", "The cost of silence after an interview."],
     ["how-it-works", "How it works", "Follow one role from promise to closure."],
     ["try-owed", "Try Owed", "See the smallest real path through the sandbox demo."],
   ]),
