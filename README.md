@@ -1,6 +1,6 @@
 # Owed
 
-Every interviewed candidate hears back by a set date. If they don't, they get paid.
+Owed lets employers back their promise to reply after an interview. The employer sets an amount and a date, and PayPal holds the money. If a candidate hears nothing by that date, Owed pays them.
 
 Live demo: [owed-vert-ten.vercel.app](https://owed-vert-ten.vercel.app). It runs on the PayPal sandbox, so all money is test money. Built for the PayPal AI Hackathon.
 
