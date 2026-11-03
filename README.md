@@ -1,8 +1,10 @@
 # Owed
 
+Hear back by the date, or get paid.
+
 Owed lets employers back their promise to reply after an interview. The employer sets an amount and a date, and PayPal holds the money. If a candidate hears nothing by that date, Owed pays them.
 
-Live demo: [owed-vert-ten.vercel.app](https://owed-vert-ten.vercel.app). It runs on the PayPal sandbox, so all money is test money. Built for the PayPal AI Hackathon.
+Live demo: [owed-vert-ten.vercel.app](https://owed-vert-ten.vercel.app). It runs on the PayPal sandbox, so all money is test money. Built for the PayPal AI Hackathon. Watch the [2:35 demo video](https://youtu.be/5Ymb56MXC1I).
 
 ## The promise, with numbers
 
@@ -18,7 +20,7 @@ An employer promises every candidate they interview an answer by a set date, and
 
 AI helps the employer write the reply. It never decides who gets paid. Fixed rules on the server move the money.
 
-Proven in the PayPal sandbox: on the live demo, a candidate's date passed with no answer, and Owed paid them $1.00 through PayPal without anyone pressing a button. [See the evidence](https://owed-vert-ten.vercel.app/docs/evidence/verified-examples) or [read the docs](https://owed-vert-ten.vercel.app/docs/get-started/introduction).
+Proven in the PayPal sandbox: on the live demo on 3 Nov 2026, an employer held $50.00 for two candidates. One candidate heard nothing by the date, and at 14:47 UTC Owed paid them $25.00 through PayPal without anyone pressing a button. Closing the role released the other $25.00. The [demo video](https://youtu.be/5Ymb56MXC1I) shows that run. [See the other sandbox runs](https://owed-vert-ten.vercel.app/docs/evidence/verified-examples) or [read the docs](https://owed-vert-ten.vercel.app/docs/get-started/introduction).
 
 ![Owed's landing page](docs/images/landing.png)
 
@@ -136,7 +138,6 @@ What we checked by hand in the PayPal sandbox:
 - Log in with PayPal returned the candidate's name, email, PayPal account ID and verified status.
 - Sending the same payout twice was refused the second time with "Batch with given sender_batch_id already exists", so a retry can't pay anyone twice. Owed then reads the original payout back.
 - Taking only part of a hold leaves the rest available to release, while taking the full amount closes the hold.
-- On the live demo, AI wrote a closure letter and flagged feedback about a candidate's experience as a reason and a comparison. The employer sent a plain answer instead, it arrived as one email, and the $1.00 hold was released.
 
 Every PayPal call Owed makes, with its exact fields and the sandbox results, is written down in [`paypal-plan.md`](paypal-plan.md).
 
@@ -165,6 +166,8 @@ Everything below ran on the live demo with PayPal sandbox accounts, and Owed's s
 
 - An employer signed in with PayPal, approved a hold, and later closed the role, which released the hold.
 - A candidate accepted an invitation in time, the date passed with no answer, and Owed paid them $1.00 through PayPal. The candidate's sandbox account received it, and both sides saw the PAID stamp with the PayPal reference.
+- An employer held $50.00 for two candidates. The date passed with no answer for one candidate, Owed charged $25.00 from the hold and paid it to them, and closing the role released the other $25.00. This is the run in the demo video.
+- AI wrote a closure letter and flagged feedback about a candidate's experience as a reason and a comparison. The employer sent a plain answer instead, it arrived as one email, and the $1.00 hold was released.
 - A two-candidate role went through a reminder, a "still deciding" answer with a new date, and a final answer. Every email arrived exactly once, and the hold was released with nothing charged.
 
 ## Built with APIMatic
